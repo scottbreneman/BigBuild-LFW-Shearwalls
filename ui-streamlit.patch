@@ -1,0 +1,1039 @@
+From 7e875b291444f8cbe52d02be3faa5b1762361126 Mon Sep 17 00:00:00 2001
+From: UI builder <ui@example.invalid>
+Date: Tue, 27 Oct 2026 19:52:57 +0000
+Subject: [PATCH] Add Streamlit UI on the design engine, packaging for a
+ Windows app folder, and UI tests
+
+---
+ .gitignore               |   4 +
+ AGENTS.md                |   2 +-
+ docs/ui.md               |  46 ++++++
+ packaging/build_exe.bat  |   8 +
+ packaging/launcher.py    |  57 +++++++
+ packaging/run_app.bat    |   3 +
+ packaging/shearwall.spec |  31 ++++
+ src/ui/__init__.py       |   0
+ src/ui/app.py            | 341 +++++++++++++++++++++++++++++++++++++++
+ src/ui/forms.py          | 140 ++++++++++++++++
+ src/ui/graphic.py        |  65 ++++++++
+ src/ui/io.py             |  42 +++++
+ src/ui/runtime.py        |  31 ++++
+ src/ui/trace_export.py   |  62 +++++++
+ tests/test_ui.py         |  76 +++++++++
+ 15 files changed, 907 insertions(+), 1 deletion(-)
+ create mode 100644 docs/ui.md
+ create mode 100644 packaging/build_exe.bat
+ create mode 100644 packaging/launcher.py
+ create mode 100644 packaging/run_app.bat
+ create mode 100644 packaging/shearwall.spec
+ create mode 100644 src/ui/__init__.py
+ create mode 100644 src/ui/app.py
+ create mode 100644 src/ui/forms.py
+ create mode 100644 src/ui/graphic.py
+ create mode 100644 src/ui/io.py
+ create mode 100644 src/ui/runtime.py
+ create mode 100644 src/ui/trace_export.py
+ create mode 100644 tests/test_ui.py
+
+diff --git a/.gitignore b/.gitignore
+index 00e826d..044ba28 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -8,3 +8,7 @@ __pycache__/
+ .streamlit/secrets.toml
+ outputs/
+ .DS_Store
++
++# packaging output
++/dist/
++/build/
+diff --git a/AGENTS.md b/AGENTS.md
+index 834b37f..b3bb54a 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -10,4 +10,4 @@ Keep licensed/restricted documents outside the checkout. Never add credentials,
+ 
+ Each cloud task is already isolated: use its existing checkout and do not create a Git worktree unless requested. Check git status before changes. Preserve others' work. Keep changes focused, explain the handoff, and run relevant checks. Never claim engineering validation from a generic environment smoke test.
+ 
+-Run tooling verification with `.venv/bin/python -m pytest tools/test_environment.py -q` on Linux/macOS or `.venv\Scripts\python -m pytest tools/test_environment.py -q` on Windows. Engineering tests belong in tests/; run them with `.venv\Scripts\python -m pytest tests -q` (or the `.venv/bin/python` equivalent). No UI entry point exists yet; when one is added under src/ui/, record its run command here.
++Run tooling verification with `.venv/bin/python -m pytest tools/test_environment.py -q` on Linux/macOS or `.venv\Scripts\python -m pytest tools/test_environment.py -q` on Windows. Engineering tests belong in tests/; run them with `.venv\Scripts\python -m pytest tests -q` (or the `.venv/bin/python` equivalent). Run the UI from the repo root with `.venv/bin/python -m streamlit run src/ui/app.py` (Windows: `.venv\Scripts\python -m streamlit run src/ui/app.py`). The UI builds `design.inputs.DesignInputs`, calls `design.engine.run_design` and holds no design logic; keep it that way. To build a Windows app folder see `docs/ui.md`.
+diff --git a/docs/ui.md b/docs/ui.md
+new file mode 100644
+index 0000000..d1484de
+--- /dev/null
++++ b/docs/ui.md
+@@ -0,0 +1,46 @@
++# Streamlit UI and Windows app
++
++Status: prototype. The UI contains no design logic. It builds `design.inputs.DesignInputs` from forms, calls
++`design.engine.run_design`, and shows the returned `DesignResult` and its calc trace.
++
++## Run from source
++
++From the repo root, with the project venv:
++
++```sh
++.venv/bin/python -m streamlit run src/ui/app.py          # Linux / macOS
++.venv\Scripts\python -m streamlit run src/ui/app.py      # Windows
++```
++
++## What is where
++
++| File | Purpose |
++| --- | --- |
++| `src/ui/app.py` | Streamlit page: Inputs, Results, Calc trace, Items to verify, Report tabs |
++| `src/ui/forms.py` | Story tables <-> `DesignInputs` (no formulas) |
++| `src/ui/io.py` | Inputs JSON import/export |
++| `src/ui/graphic.py` | Stack SVG coloured by story DCR |
++| `src/ui/trace_export.py` | Interim Markdown/JSON download of the calc trace (the report builder will replace it) |
++| `src/ui/runtime.py` | Path setup; works from source and from the packaged app |
++| `packaging/` | PyInstaller spec, launcher, `build_exe.bat`, `run_app.bat` |
++| `tests/test_ui.py` | Round-trip, export and headless app tests |
++
++## Component data source
++
++The sidebar offers two sources. *WoodWorks example components* are the answer-key fixtures in
++`tests/fixtures/woodworks_components` (rows marked `memory`). *Project component library* is
++`src/design/components/data`; until engineers fill and verify rows, checks report **needs input**, not a pass.
++
++## Windows app (not yet verified on Windows)
++
++On a Windows machine, from the repo root with the venv active:
++
++```bat
++packaging\build_exe.bat
++dist\ShearWallStack\ShearWallStack.exe --selftest
++dist\ShearWallStack\ShearWallStack.exe
++```
++
++Keep the whole `dist\ShearWallStack` folder together. The build was trial-run on Linux only (spec, bundled data,
++`--selftest`, and a headless session of the frozen app). The Linux folder is about 350 MB, mostly Streamlit's
++dependencies.
+diff --git a/packaging/build_exe.bat b/packaging/build_exe.bat
+new file mode 100644
+index 0000000..e88928c
+--- /dev/null
++++ b/packaging/build_exe.bat
+@@ -0,0 +1,8 @@
++@echo off
++REM Build the Windows app folder. Run from the repo root in an activated venv:
++REM   .venv\Scripts\activate
++REM   packaging\build_exe.bat
++python -m pip install pyinstaller
++python -m PyInstaller packaging\shearwall.spec --noconfirm --distpath dist --workpath build
++echo.
++echo Done. Run dist\ShearWallStack\ShearWallStack.exe  (keep the whole folder together)
+diff --git a/packaging/launcher.py b/packaging/launcher.py
+new file mode 100644
+index 0000000..45532c9
+--- /dev/null
++++ b/packaging/launcher.py
+@@ -0,0 +1,57 @@
++"""Entry point for the packaged app (also works from source: python packaging/launcher.py).
++
++Starts the Streamlit server on localhost and opens the browser. Nothing leaves the machine.
++"""
++
++from __future__ import annotations
++
++import os
++import sys
++import threading
++import webbrowser
++from pathlib import Path
++
++
++def selftest(root: Path) -> int:
++    """Run the WoodWorks example through the engine using the bundled data. Exit code 0 = OK."""
++    for p in (root / "src", root / "tests"):
++        if p.is_dir() and str(p) not in sys.path:
++            sys.path.insert(0, str(p))
++    import woodworks_example as ex
++    from design.engine import run_design
++    from design.library import default_library
++    from ui.io import inputs_from_json, inputs_to_json
++
++    inp = ex.inputs()
++    assert inputs_from_json(inputs_to_json(inp)) == inp
++    res = run_design(inp, ex.library())
++    print(f"example: {res.status.value}, governing {res.governing_check}, max DCR {res.max_dcr:.3f}")
++    real = run_design(inp, default_library())
++    print(f"project library: {real.status.value} ({len(real.needs_input)} checks need input)")
++    ok = res.status.value == "pass" and real.status.value == "incomplete"
++    print("SELFTEST OK" if ok else "SELFTEST FAILED")
++    return 0 if ok else 1
++
++
++def main() -> None:
++    root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))
++    if "--selftest" in sys.argv:
++        sys.exit(selftest(root))
++    app = root / "src" / "ui" / "app.py"
++    port = int(os.environ.get("SHEARWALL_PORT", "8501"))
++    os.environ["STREAMLIT_GLOBAL_DEVELOPMENT_MODE"] = "false"
++
++    from streamlit.web import cli as stcli
++
++    if os.environ.get("SHEARWALL_NO_BROWSER") != "1":
++        threading.Timer(3.0, lambda: webbrowser.open(f"http://localhost:{port}")).start()
++    sys.argv = [
++        "streamlit", "run", str(app),
++        f"--server.port={port}", "--server.address=localhost", "--server.headless=true",
++        "--server.fileWatcherType=none", "--browser.gatherUsageStats=false", "--global.developmentMode=false",
++    ]
++    sys.exit(stcli.main())
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/packaging/run_app.bat b/packaging/run_app.bat
+new file mode 100644
+index 0000000..1b04cff
+--- /dev/null
++++ b/packaging/run_app.bat
+@@ -0,0 +1,3 @@
++@echo off
++REM Run the app from source (no build). From the repo root:
++.venv\Scripts\python -m streamlit run src\ui\app.py
+diff --git a/packaging/shearwall.spec b/packaging/shearwall.spec
+new file mode 100644
+index 0000000..5fb96dc
+--- /dev/null
++++ b/packaging/shearwall.spec
+@@ -0,0 +1,31 @@
++# PyInstaller spec. Build from the repo root:  pyinstaller packaging/shearwall.spec --noconfirm
++# Produces dist/ShearWallStack/ShearWallStack(.exe). Build on the OS you will run it on (Windows build on Windows).
++import os
++from PyInstaller.utils.hooks import collect_all, copy_metadata
++
++ROOT = os.path.abspath(os.path.join(SPECPATH, ".."))   # repo root (SPECPATH = this file's folder)
++R = lambda *p: os.path.join(ROOT, *p)
++
++datas = [
++    (R("src", "ui"), "src/ui"),
++    (R("src", "design"), "src/design"),          # includes components/data/*.csv
++    (R("src", "analysis"), "src/analysis"),
++    (R("tests", "woodworks_example.py"), "tests"),
++    (R("tests", "fixtures", "woodworks_components"), "tests/fixtures/woodworks_components"),
++]
++binaries, hiddenimports = [], []
++for pkg in ("streamlit",):
++    d, b, h = collect_all(pkg)
++    datas += d; binaries += b; hiddenimports += h
++datas += copy_metadata("streamlit") + copy_metadata("pandas") + copy_metadata("numpy")
++hiddenimports += ["design", "analysis", "ui", "woodworks_example"]
++
++a = Analysis(
++    [R("packaging", "launcher.py")],
++    pathex=[R("src"), R("tests")],
++    datas=datas, binaries=binaries, hiddenimports=hiddenimports,
++    excludes=["openseespy", "scipy", "matplotlib", "pytest", "tkinter"],  # not used by the app
++)
++pyz = PYZ(a.pure)
++exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name="ShearWallStack", console=True)  # console shows the server log
++coll = COLLECT(exe, a.binaries, a.datas, name="ShearWallStack")
+diff --git a/src/ui/__init__.py b/src/ui/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/src/ui/app.py b/src/ui/app.py
+new file mode 100644
+index 0000000..d3f6936
+--- /dev/null
++++ b/src/ui/app.py
+@@ -0,0 +1,341 @@
++"""Streamlit app: shear wall stack inputs, results, calc trace, items to verify.
++
++Run from the repo root:   python -m streamlit run src/ui/app.py
++(Windows venv: .venv\\Scripts\\python -m streamlit run src/ui/app.py)
++
++The UI holds no design logic. It builds ``design.inputs.DesignInputs`` from the forms, calls
++``design.engine.run_design`` and displays the returned ``DesignResult`` and its calc trace.
++"""
++
++from __future__ import annotations
++
++import base64
++import dataclasses
++import sys
++import traceback
++from pathlib import Path
++
++sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # src/
++from ui.runtime import ensure_paths, git_commit  # noqa: E402
++
++ensure_paths()
++
++import pandas as pd  # noqa: E402
++import streamlit as st  # noqa: E402
++
++from design.engine import run_design  # noqa: E402
++from design.library import default_library  # noqa: E402
++from design.result import EDITIONS, OverallStatus  # noqa: E402
++from design.trace import CheckStatus  # noqa: E402
++from ui import forms  # noqa: E402
++from ui.graphic import stack_svg  # noqa: E402
++from ui.io import inputs_from_json, inputs_to_json  # noqa: E402
++from ui.trace_export import DISCLAIMER, result_to_json, result_to_markdown  # noqa: E402
++
++SRC_EXAMPLE = "WoodWorks example components (answer-key fixtures)"
++SRC_PROJECT = "Project component library (src/design/components/data)"
++CATS = [("shear", "Shear"), ("aspect", "Aspect"), ("compression", "Chord comp."), ("holddown", "Hold-down"),
++        ("rod", "Rod"), ("plate_bearing", "Plate bearing"), ("plate_bending", "Plate bending"), ("drift", "Drift")]
++
++st.set_page_config(page_title="Shear Wall Stack (prototype)", layout="wide")
++
++
++# ------------------------------------------------------------------ data sources and state
++@st.cache_resource
++def get_library(source: str):
++    if source == SRC_EXAMPLE:
++        import woodworks_example as ex
++        return ex.library()
++    return default_library()
++
++
++def example_inputs():
++    import woodworks_example as ex
++    return ex.inputs()
++
++
++def apply_inputs(inp) -> None:
++    for k, v in forms.global_values_from_inputs(inp).items():
++        st.session_state[f"g_{k}"] = v
++    st.session_state["n_stories"] = len(inp.stories)
++    st.session_state["base_frames"] = forms.frames_from_inputs(inp)
++    st.session_state["ver"] = st.session_state.get("ver", 0) + 1
++
++
++def on_resize() -> None:
++    n = int(st.session_state["n_stories"])
++    st.session_state["base_frames"] = forms.resize_frames(st.session_state["base_frames"], n)
++    st.session_state["ver"] += 1
++
++
++def on_load_example() -> None:
++    apply_inputs(example_inputs())
++    st.session_state["lib_source"] = SRC_EXAMPLE
++
++
++if "base_frames" not in st.session_state:
++    apply_inputs(example_inputs())
++    st.session_state["lib_source"] = SRC_EXAMPLE
++
++# ------------------------------------------------------------------ sidebar
++with st.sidebar:
++    st.header("Project")
++    st.text_input("Project name", key="g_project_name")
++    st.radio("Component data", [SRC_EXAMPLE, SRC_PROJECT], key="lib_source",
++             help="The project library is mostly 'pending' until engineers fill and verify it; checks then report "
++                  "'needs input' instead of using unchecked numbers.")
++    st.button("Load WoodWorks 5-story example", on_click=on_load_example, use_container_width=True)
++    up = st.file_uploader("Load inputs (.json)", type="json")
++    if up is not None:
++        marker = (up.name, up.size)
++        if st.session_state.get("last_upload") != marker:
++            try:
++                apply_inputs(inputs_from_json(up.getvalue().decode("utf-8")))
++                st.session_state["last_upload"] = marker
++                st.rerun()
++            except Exception as exc:  # noqa: BLE001
++                st.error(f"Could not read inputs file: {exc}")
++    st.caption("Editions: " + ", ".join(EDITIONS))
++
++lib = get_library(st.session_state["lib_source"])
++ver = st.session_state["ver"]
++
++st.title("Light-frame wood shear wall stack")
++st.warning(f"{DISCLAIMER} Source status of every value is shown; items not verified are listed under 'Items to verify'.")
++
++tab_in, tab_res, tab_trace, tab_verify, tab_report = st.tabs(
++    ["Inputs", "Results", "Calc trace", "Items to verify", "Report"])
++
++# ------------------------------------------------------------------ inputs
++with tab_in:
++    c1, c2, c3 = st.columns(3)
++    with c1:
++        st.subheader("Wall and load")
++        st.radio("Load type", ["seismic", "wind"], key="g_load_type", horizontal=True)
++        st.number_input("Wall length b (ft)", min_value=0.0, step=0.5, key="g_b_ft")
++        st.number_input("Number of stories (1 = bottom)", min_value=1, max_value=5, step=1, key="n_stories",
++                        on_change=on_resize)
++        st.number_input("End post width d_post (in); 0 = not given", min_value=0.0, step=0.5, key="g_d_post_in",
++                        help="Default chord lever arm (decision D2). Not needed when every story has its own d_arm.")
++    seismic = st.session_state["g_load_type"] == "seismic"
++    with c2:
++        st.subheader("Seismic" if seismic else "Wind")
++        if seismic:
++            st.number_input("S_DS", min_value=0.0, step=0.01, key="g_S_DS", format="%.3f")
++            st.number_input("C_d", min_value=0.0, step=0.5, key="g_C_d")
++            st.number_input("I_e", min_value=0.0, step=0.05, key="g_I_e")
++            st.selectbox("Risk category", ["I", "II", "III", "IV"], key="g_risk_category")
++            st.selectbox("Seismic design category", ["", "A", "B", "C", "D", "E", "F"], key="g_sdc")
++        else:
++            st.number_input("Net roof uplift on wall (plf, strength level)", min_value=0.0, step=10.0,
++                            key="g_roof_uplift_plf")
++            st.number_input("Wind drift limit h / ___ ; 0 = no limit applied", min_value=0.0, step=50.0,
++                            key="g_wind_drift_denominator",
++                            help="No code limit is applied for wind; the owner or project sets it (decision D6).")
++    with c3:
++        st.subheader("Engineer settings")
++        st.number_input("Wood bearing amplification", min_value=1.0, step=0.05, key="g_wood_bearing_factor",
++                        help="Wood-to-wood crushing amplification (example §3.4.3, engineer judgement).")
++        st.checkbox("Carry rotation from lower stories into drift (D6)", key="g_carry_rotation")
++        if not seismic:
++            st.caption("Seismic fields are hidden for wind.")
++    st.caption("Story forces F are **strength level** (E_h or W). The engine applies the ASD and drift combination "
++               "factors (decision D8, revised).")
++
++    base_loads, base_chords, base_ties = st.session_state["base_frames"]
++
++    def opts(base: list[str], current) -> list[str]:
++        vals = [v for v in base if v]
++        for c in current:
++            if isinstance(c, str) and c and c not in vals:
++                vals.append(c)
++        return vals
++
++    asm_ids = opts([a.assembly_id for a in lib.shear_wall_assemblies], base_loads["assembly_id"])
++    rod_ids = opts([r.system_id for r in lib.continuous_rod_systems], base_ties["system_id"].dropna())
++    hd_models = opts([h.model for h in lib.holddowns], base_ties["model"].dropna())
++    species = opts(sorted({v.species_group for v in lib.lumber_design_values}), base_chords["species_group"])
++    grades = opts(sorted({v.grade for v in lib.lumber_design_values}), base_chords["grade"])
++    classes = opts(sorted({v.size_class for v in lib.lumber_design_values}), base_chords["size_class"])
++    posts = opts([s.nominal for s in lib.lumber_sizes], base_chords["post_nominal"])
++
++    NC = st.column_config.NumberColumn
++    SC = st.column_config.SelectboxColumn
++    t_loads, t_chords, t_ties = st.tabs(["Loads and nailing", "Chord posts", "Tie-downs"])
++    with t_loads:
++        loads = st.data_editor(base_loads, key=f"loads_{ver}", num_rows="fixed", use_container_width=True, column_config={
++            "h_ft": NC("h (ft)", min_value=0.0, step=0.5, format="%.2f"),
++            "F_lb": NC("F (lb)", min_value=0.0, step=50.0, format="%.0f"),
++            "w_D_plf": NC("w_D (plf)", min_value=0.0, format="%.1f"),
++            "w_wall_plf": NC("w_wall (plf)", min_value=0.0, format="%.1f"),
++            "w_L_plf": NC("w_L (plf)", min_value=0.0, format="%.1f"),
++            "w_Lr_plf": NC("w_Lr (plf)", min_value=0.0, format="%.1f"),
++            "assembly_id": SC("Nailing / assembly", options=asm_ids, required=True),
++            "sides": SC("Sides", options=[1, 2], required=True),
++            "panel_type": SC("Panel", options=["OSB", "Plywood"], required=True)})
++    with t_chords:
++        chords = st.data_editor(base_chords, key=f"chords_{ver}", num_rows="fixed", use_container_width=True, column_config={
++            "n_posts": NC("Posts (n)", min_value=1, step=1, format="%d"),
++            "post_nominal": SC("Post", options=posts, required=True),
++            "species_group": SC("Species", options=species, required=True),
++            "grade": SC("Grade", options=grades, required=True),
++            "size_class": SC("Size class", options=classes, required=True),
++            "chord_length_ft": NC("Chord length (ft)", min_value=0.0, step=0.125, format="%.3f"),
++            "d_arm_ft": NC("d arm (ft), blank = D2 default", min_value=0.0, step=0.05, format="%.2f"),
++            "d_out_of_plane_in": NC("d out-of-plane (in), blank = dressed", min_value=0.0, step=0.25),
++            "top_plates_in": NC("Top plates (in)", min_value=0.0, step=0.5),
++            "bottom_plate_in": NC("Bottom plate (in)", min_value=0.0, step=0.5)})
++    with t_ties:
++        st.caption("Rod system: fill the plate and rod fields. Hold-down: fill model or T_allow. Unused cells stay blank.")
++        ties = st.data_editor(base_ties, key=f"ties_{ver}", num_rows="fixed", use_container_width=True, column_config={
++            "kind": SC("Type", options=[forms.ROD, forms.HOLDDOWN], required=True),
++            "system_id": SC("Rod system", options=rod_ids),
++            "plate_width_in": NC("Plate w (in)", min_value=0.0, step=0.25),
++            "plate_length_in": NC("Plate l (in)", min_value=0.0, step=0.25),
++            "plate_thickness_in": NC("Plate t (in)", min_value=0.0, step=0.125, format="%.3f"),
++            "plate_Fy_psi": NC("Plate Fy (psi)", min_value=0.0, step=1000.0, format="%.0f"),
++            "slack_in": NC("Slack (in)", min_value=0.0, step=0.01, format="%.4f"),
++            "takeup_elongation_in": NC("Take-up (in)", min_value=0.0, step=0.005, format="%.4f"),
++            "rod_length_ft": NC("Rod length (ft), blank = story h", min_value=0.0, step=0.5),
++            "model": SC("Hold-down model", options=hd_models),
++            "T_allow_lb": NC("T_allow (lb)", min_value=0.0, step=100.0, format="%.0f"),
++            "delta_a_in": NC("Δ_a (in)", min_value=0.0, step=0.01, format="%.3f")})
++
++    # nailing status panel: what the library says about each chosen assembly
++    rows = []
++    by_id = {a.assembly_id: a for a in lib.shear_wall_assemblies}
++    for story, aid in loads["assembly_id"].items():
++        a = by_id.get(aid)
++        rows.append({"Story": story, "Assembly": aid, "Grade": a.panel_grade if a else "?",
++                     "Panel t": a.min_nominal_panel_thickness_label if a else "?",
++                     "Nail": a.nail_designation if a else "?", "Edge (in)": a.edge_nail_spacing_in if a else None,
++                     "Library status": a.status.value if a else "not in library"})
++    with st.expander("Nailing selection: library status per story"):
++        st.dataframe(pd.DataFrame(rows).set_index("Story"), use_container_width=True)
++
++# ------------------------------------------------------------------ run the engine
++g = {k: st.session_state[f"g_{k}"] for k in forms.GLOBAL_DEFAULTS}
++inp = forms.build_inputs(g, loads, chords, ties)
++res, run_error = None, None
++try:
++    res = dataclasses.replace(run_design(inp, lib), git_commit=git_commit())
++except Exception:  # noqa: BLE001  (surface engine bugs instead of a blank page)
++    run_error = traceback.format_exc()
++
++with st.sidebar:
++    st.download_button("Download inputs (.json)", inputs_to_json(inp), file_name="shearwall_inputs.json",
++                       mime="application/json", use_container_width=True)
++
++# ------------------------------------------------------------------ results
++with tab_res:
++    if run_error:
++        st.error("The design engine raised an error. Send this to the calc builder.")
++        st.code(run_error)
++    elif res.status is OverallStatus.INVALID_INPUT:
++        st.error("Fix these inputs before the engine will run checks:")
++        st.table(pd.DataFrame([{"Field": e.field, "Problem": e.message} for e in res.input_errors]))
++    else:
++        banner = {OverallStatus.PASS: st.success, OverallStatus.FAIL: st.error, OverallStatus.INCOMPLETE: st.warning}
++        label = {OverallStatus.PASS: "All checks pass", OverallStatus.FAIL: "One or more checks FAIL",
++                 OverallStatus.INCOMPLETE: "Incomplete: some checks need engineer input or component data"}
++        banner[res.status](label[res.status])
++        m1, m2, m3, m4 = st.columns(4)
++        m1.metric("Governing story", res.governing_story or "-")
++        m2.metric("Governing check", (res.governing_check or "-"))
++        m3.metric("Max DCR", "-" if res.max_dcr is None else f"{res.max_dcr:.3f}")
++        m4.metric("Unverified steps", len(res.unverified_steps))
++
++        left, right = st.columns([3, 2])
++        table = []
++        for s in res.stories:
++            row = {"Story": s.story}
++            for cat, lab in CATS:
++                chk = [c for c in s.checks if c.category == cat]
++                if not chk:
++                    row[lab] = "-"
++                    continue
++                c = chk[0]
++                row[lab] = {CheckStatus.NEEDS_INPUT: "needs input", CheckStatus.INFO: "info",
++                            CheckStatus.NOT_APPLICABLE: "n/a"}.get(c.status, f"{c.dcr:.2f}" if c.dcr is not None else "-")
++            row["Governing"] = (s.governing_id or "-").split(".", 1)[-1]
++            row["Max DCR"] = "-" if s.max_dcr is None else f"{s.max_dcr:.2f}"
++            table.append(row)
++        df = pd.DataFrame(table).set_index("Story")
++
++        def colour(v):
++            try:
++                x = float(v)
++            except (TypeError, ValueError):
++                return "background-color:#E4E7EB" if v == "needs input" else ""
++            return ("background-color:#F8CFCF" if x > 1 else "background-color:#FFF0C2" if x > 0.9
++                    else "background-color:#DFF3E4")
++
++        with left:
++            st.subheader("Demand / capacity by story")
++            st.dataframe(df.style.map(colour, subset=[lab for _, lab in CATS] + ["Max DCR"]), use_container_width=True)
++            st.caption("Green ≤ 0.90, amber 0.90 to 1.00, red above 1.00, grey = needs input. Story 1 is the bottom.")
++            if res.needs_input:
++                st.subheader("Needs engineer input")
++                st.dataframe(pd.DataFrame([{"Check": n.check_id, "Decision / data": n.decision, "Message": n.message}
++                                           for n in res.needs_input]), use_container_width=True, hide_index=True)
++        with right:
++            st.subheader("Wall stack")
++            b64 = base64.b64encode(stack_svg(inp, res).encode()).decode()
++            st.markdown(f'<img style="width:100%" src="data:image/svg+xml;base64,{b64}"/>', unsafe_allow_html=True)
++
++# ------------------------------------------------------------------ calc trace
++with tab_trace:
++    if res is None or res.status is OverallStatus.INVALID_INPUT:
++        st.info("Run needs valid inputs first.")
++    else:
++        story = st.selectbox("Story", [s.story for s in res.stories])
++        render_eq = st.checkbox("Render equations (slower)", value=False)
++
++        def show_steps(steps):
++            if render_eq:
++                for s in steps:
++                    st.latex(s.equation_latex)
++                    st.caption(f"{s.substitution}  =  {s.value} {s.unit}  ·  {s.citation}  ·  {s.status}  ·  {s.id}")
++            else:
++                st.dataframe(pd.DataFrame([{"Step": s.id, "Name": s.name, "Symbol": s.symbol,
++                                            "Equation": s.equation_latex, "Substitution": s.substitution,
++                                            "Value": str(s.value), "Unit": s.unit, "Citation": s.citation,
++                                            "Status": s.status, "Note": s.note} for s in steps]),
++                             use_container_width=True, hide_index=True)
++
++        for c in res.stories[story - 1].checks:
++            dcr = "" if c.dcr is None else f" · DCR {c.dcr:.3f}"
++            with st.expander(f"{c.id} · {c.name} · {c.status.value}{dcr}"):
++                if c.message:
++                    st.info(c.message + (f" ({c.decision})" if c.decision else ""))
++                if c.steps:
++                    show_steps(c.steps)
++        with st.expander("Stack: load combinations, story forces, chord forces"):
++            show_steps(res.stack_steps)
++
++# ------------------------------------------------------------------ items to verify
++with tab_verify:
++    st.subheader("Component library status")
++    counts = pd.DataFrame(lib.status_counts()).T.fillna(0).astype(int)
++    st.dataframe(counts, use_container_width=True)
++    if res is not None and res.status is not OverallStatus.INVALID_INPUT:
++        st.subheader("Component rows used with status 'memory'")
++        st.write(list(res.component_items_to_verify) or "none")
++        st.subheader("Calculation steps not verified or statics")
++        st.write(f"{len(res.unverified_steps)} steps")
++        if res.unverified_steps:
++            st.dataframe(pd.DataFrame([{"Step": s.id, "Name": s.name, "Citation": s.citation, "Status": s.status}
++                                       for s in res.unverified_steps]), use_container_width=True, hide_index=True)
++
++# ------------------------------------------------------------------ report
++with tab_report:
++    st.info("Interim downloads. The report generator (docs/spec-io.md §6) will replace the Markdown file.")
++    if res is None or res.status is OverallStatus.INVALID_INPUT:
++        st.write("Run needs valid inputs first.")
++    else:
++        st.download_button("Calc trace (.md)", result_to_markdown(res), file_name="shearwall_calc_trace.md",
++                           mime="text/markdown")
++        st.download_button("Full result (.json)", result_to_json(res), file_name="shearwall_result.json",
++                           mime="application/json")
++    st.download_button("Inputs (.json)", inputs_to_json(inp), file_name="shearwall_inputs.json",
++                       mime="application/json", key="dl_inputs_report")
+diff --git a/src/ui/forms.py b/src/ui/forms.py
+new file mode 100644
+index 0000000..263381f
+--- /dev/null
++++ b/src/ui/forms.py
+@@ -0,0 +1,140 @@
++"""Story tables <-> ``DesignInputs`` (UI side only; no design logic).
++
++Three editable tables share the story number as their index:
++loads and nailing, chord posts, and tie-downs.
++"""
++
++from __future__ import annotations
++
++import math
++from typing import Any
++
++import pandas as pd
++
++from design.inputs import ChordSpec, DesignInputs, GenericHoldDown, RodSystem, StoryInput
++
++LOAD_COLS = ["h_ft", "F_lb", "w_D_plf", "w_wall_plf", "w_L_plf", "w_Lr_plf", "assembly_id", "sides", "panel_type"]
++CHORD_COLS = ["n_posts", "post_nominal", "species_group", "grade", "size_class", "chord_length_ft",
++              "d_arm_ft", "d_out_of_plane_in", "top_plates_in", "bottom_plate_in"]
++TIE_COLS = ["kind", "system_id", "plate_width_in", "plate_length_in", "plate_thickness_in", "plate_Fy_psi",
++            "slack_in", "takeup_elongation_in", "rod_length_ft", "model", "T_allow_lb", "delta_a_in"]
++ROD, HOLDDOWN = "Rod system", "Hold-down"
++
++GLOBAL_DEFAULTS: dict[str, Any] = dict(
++    project_name="", load_type="seismic", b_ft=20.0, S_DS=0.0, C_d=0.0, I_e=0.0, risk_category="II", sdc="",
++    d_post_in=0.0, roof_uplift_plf=0.0, wind_drift_denominator=0.0, wood_bearing_factor=1.75, carry_rotation=False,
++)
++
++
++def _none(x):
++    """NaN / None / blank -> None."""
++    if x is None:
++        return None
++    if isinstance(x, float) and math.isnan(x):
++        return None
++    if isinstance(x, str) and not x.strip():
++        return None
++    try:
++        if pd.isna(x):
++            return None
++    except (TypeError, ValueError):
++        pass
++    return x
++
++
++def _f(x, default: float = 0.0) -> float:
++    v = _none(x)
++    return default if v is None else float(v)
++
++
++def _opt(x):
++    v = _none(x)
++    return None if v is None else float(v)
++
++
++def _pos_or_none(x):
++    v = _opt(x)
++    return v if v and v > 0 else None
++
++
++def global_values_from_inputs(inp: DesignInputs) -> dict[str, Any]:
++    return dict(
++        project_name=inp.project_name, load_type=inp.load_type, b_ft=inp.b_ft, S_DS=inp.S_DS or 0.0,
++        C_d=inp.C_d or 0.0, I_e=inp.I_e or 0.0, risk_category=inp.risk_category or "II", sdc=inp.sdc or "",
++        d_post_in=inp.d_post_in or 0.0, roof_uplift_plf=inp.roof_uplift_plf,
++        wind_drift_denominator=(1 / inp.wind_drift_limit_ratio) if inp.wind_drift_limit_ratio else 0.0,
++        wood_bearing_factor=inp.wood_bearing_factor, carry_rotation=inp.carry_rotation,
++    )
++
++
++def frames_from_inputs(inp: DesignInputs) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
++    loads, chords, ties = [], [], []
++    for s in inp.stories:
++        loads.append({c: getattr(s, c) for c in LOAD_COLS})
++        chords.append({c: getattr(s.chord, c) for c in CHORD_COLS})
++        t = s.tiedown
++        if isinstance(t, RodSystem):
++            ties.append(dict(kind=ROD, system_id=t.system_id, plate_width_in=t.plate_width_in,
++                             plate_length_in=t.plate_length_in, plate_thickness_in=t.plate_thickness_in,
++                             plate_Fy_psi=t.plate_Fy_psi, slack_in=t.slack_in,
++                             takeup_elongation_in=t.takeup_elongation_in, rod_length_ft=t.rod_length_ft,
++                             model=None, T_allow_lb=None, delta_a_in=None))
++        else:
++            ties.append(dict(kind=HOLDDOWN, system_id=None, plate_width_in=None, plate_length_in=None,
++                             plate_thickness_in=None, plate_Fy_psi=None, slack_in=None, takeup_elongation_in=None,
++                             rod_length_ft=None, model=t.model, T_allow_lb=t.T_allow_lb, delta_a_in=t.delta_a_in))
++    idx = pd.RangeIndex(1, len(inp.stories) + 1, name="story")
++    return (pd.DataFrame(loads, columns=LOAD_COLS, index=idx), pd.DataFrame(chords, columns=CHORD_COLS, index=idx),
++            pd.DataFrame(ties, columns=TIE_COLS, index=idx))
++
++
++def resize_frames(frames, n: int):
++    """Grow (copying the top story) or shrink the three story tables to ``n`` rows."""
++    out = []
++    for df in frames:
++        df = df.iloc[:n].copy()
++        while len(df) < n:
++            df.loc[len(df) + 1] = df.iloc[-1]
++        df.index = pd.RangeIndex(1, n + 1, name="story")
++        out.append(df)
++    return tuple(out)
++
++
++def stories_from_frames(loads: pd.DataFrame, chords: pd.DataFrame, ties: pd.DataFrame) -> tuple[StoryInput, ...]:
++    stories = []
++    for k in range(len(loads)):
++        l, c, t = loads.iloc[k], chords.iloc[k], ties.iloc[k]
++        chord = ChordSpec(
++            n_posts=int(_f(c["n_posts"])), post_nominal=str(_none(c["post_nominal"]) or "2x4"),
++            species_group=str(_none(c["species_group"]) or ""), grade=str(_none(c["grade"]) or ""),
++            size_class=str(_none(c["size_class"]) or ""), chord_length_ft=_f(c["chord_length_ft"]),
++            d_arm_ft=_pos_or_none(c["d_arm_ft"]), d_out_of_plane_in=_pos_or_none(c["d_out_of_plane_in"]),
++            top_plates_in=_f(c["top_plates_in"], 3.0), bottom_plate_in=_f(c["bottom_plate_in"], 1.5))
++        if t["kind"] == ROD:
++            tiedown = RodSystem(
++                system_id=str(_none(t["system_id"]) or ""), plate_width_in=_f(t["plate_width_in"]),
++                plate_length_in=_f(t["plate_length_in"]), plate_thickness_in=_f(t["plate_thickness_in"]),
++                plate_Fy_psi=_f(t["plate_Fy_psi"], 36_000.0), slack_in=_f(t["slack_in"]),
++                takeup_elongation_in=_f(t["takeup_elongation_in"]), rod_length_ft=_pos_or_none(t["rod_length_ft"]))
++        else:
++            tiedown = GenericHoldDown(model=_none(t["model"]), T_allow_lb=_pos_or_none(t["T_allow_lb"]),
++                                      delta_a_in=_opt(t["delta_a_in"]))
++        stories.append(StoryInput(
++            h_ft=_f(l["h_ft"]), F_lb=_f(l["F_lb"]), assembly_id=str(_none(l["assembly_id"]) or ""), chord=chord,
++            tiedown=tiedown, w_D_plf=_f(l["w_D_plf"]), w_wall_plf=_f(l["w_wall_plf"]), w_L_plf=_f(l["w_L_plf"]),
++            w_Lr_plf=_f(l["w_Lr_plf"]), sides=int(_f(l["sides"], 1)),
++            panel_type=str(_none(l["panel_type"]) or "OSB")))
++    return tuple(stories)
++
++
++def build_inputs(g: dict[str, Any], loads, chords, ties) -> DesignInputs:
++    seismic = g["load_type"] == "seismic"
++    denom = _pos_or_none(g.get("wind_drift_denominator"))
++    return DesignInputs(
++        load_type=g["load_type"], b_ft=_f(g["b_ft"]), stories=stories_from_frames(loads, chords, ties),
++        S_DS=_f(g["S_DS"]) if seismic else None, C_d=_pos_or_none(g["C_d"]) if seismic else None,
++        I_e=_pos_or_none(g["I_e"]) if seismic else None, risk_category=g["risk_category"] if seismic else None,
++        sdc=(g["sdc"] or None) if seismic else None, d_post_in=_pos_or_none(g["d_post_in"]),
++        roof_uplift_plf=_f(g["roof_uplift_plf"]), wind_drift_limit_ratio=(1 / denom) if denom else None,
++        wood_bearing_factor=_f(g["wood_bearing_factor"], 1.75), carry_rotation=bool(g["carry_rotation"]),
++        project_name=g.get("project_name", ""))
+diff --git a/src/ui/graphic.py b/src/ui/graphic.py
+new file mode 100644
+index 0000000..2a82916
+--- /dev/null
++++ b/src/ui/graphic.py
+@@ -0,0 +1,65 @@
++"""Stack graphic as an SVG string, coloured by story DCR (no plotting dependency)."""
++
++from __future__ import annotations
++
++from html import escape
++
++from design.inputs import DesignInputs
++from design.result import DesignResult, OverallStatus
++
++GREEN, AMBER, RED, GREY = "#DFF3E4", "#FFF0C2", "#F8CFCF", "#E4E7EB"
++STROKE = {GREEN: "#3A8A55", AMBER: "#B8860B", RED: "#B03030", GREY: "#8A94A0"}
++
++
++def dcr_colour(dcr: float | None, incomplete: bool = False) -> str:
++    if dcr is None or incomplete:
++        return GREY
++    if dcr > 1.0:
++        return RED
++    if dcr > 0.90:
++        return AMBER
++    return GREEN
++
++
++def stack_svg(inp: DesignInputs, result: DesignResult | None = None) -> str:
++    px_per_ft, wall_w, left, top = 26.0, 170, 92, 26
++    n = len(inp.stories)
++    total_h = sum(s.h_ft for s in inp.stories) * px_per_ft
++    width, height = 400, int(total_h + top + 40)
++    out = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" width="100%" '
++           f'font-family="DejaVu Sans, Arial, sans-serif">']
++    y = top
++    for i in range(n, 0, -1):  # story n at the top of the drawing
++        s = inp.stories[i - 1]
++        h = s.h_ft * px_per_ft
++        sr = result.stories[i - 1] if result and result.stories else None
++        incomplete = bool(sr and sr.status is OverallStatus.INCOMPLETE and sr.max_dcr is None)
++        fill = dcr_colour(sr.max_dcr if sr else None, incomplete)
++        out.append(f'<rect x="{left}" y="{y:.1f}" width="{wall_w}" height="{h:.1f}" fill="{fill}" '
++                   f'stroke="{STROKE[fill]}" stroke-width="1.5"/>')
++        out.append(f'<text x="{left - 8}" y="{y + h / 2 + 4:.1f}" font-size="12" text-anchor="end" fill="#1F3A5F" '
++                   f'font-weight="bold">Story {i}</text>')
++        out.append(f'<text x="{left + wall_w / 2}" y="{y + h / 2 - 2:.1f}" font-size="10.5" text-anchor="middle" '
++                   f'fill="#222">{escape(s.assembly_id or "no assembly")}</text>')
++        out.append(f'<text x="{left + wall_w / 2}" y="{y + h / 2 + 11:.1f}" font-size="10" text-anchor="middle" '
++                   f'fill="#555">{s.sides} side{"s" if s.sides != 1 else ""} · h = {s.h_ft:g} ft</text>')
++        # applied force arrow at the top of the story
++        ay = y
++        out.append(f'<line x1="{left - 40}" y1="{ay}" x2="{left}" y2="{ay}" stroke="#1F3A5F" stroke-width="1.6"/>'
++                   f'<polygon points="{left},{ay} {left - 7},{ay - 3.5} {left - 7},{ay + 3.5}" fill="#1F3A5F"/>')
++        out.append(f'<text x="{left - 44}" y="{ay - 4}" font-size="9.5" text-anchor="end" fill="#1F3A5F">'
++                   f'F = {s.F_lb:,.0f} lb</text>')
++        # DCR label on the right
++        if sr and sr.max_dcr is not None:
++            out.append(f'<text x="{left + wall_w + 10}" y="{y + h / 2 + 4:.1f}" font-size="12" fill="#222" '
++                       f'font-weight="bold">DCR {sr.max_dcr:.2f}</text>')
++            gov = (sr.governing_id or "").split(".", 1)[-1]
++            out.append(f'<text x="{left + wall_w + 10}" y="{y + h / 2 + 18:.1f}" font-size="9.5" fill="#555">{escape(gov)}</text>')
++        elif sr:
++            out.append(f'<text x="{left + wall_w + 10}" y="{y + h / 2 + 4:.1f}" font-size="10.5" fill="#777">needs input</text>')
++        y += h
++    out.append(f'<line x1="{left - 8}" y1="{y}" x2="{left + wall_w + 8}" y2="{y}" stroke="#444" stroke-width="2.5"/>')
++    out.append(f'<text x="{left + wall_w / 2}" y="{y + 16}" font-size="10.5" text-anchor="middle" fill="#555">'
++               f'b = {inp.b_ft:g} ft</text>')
++    out.append("</svg>")
++    return "".join(out)
+diff --git a/src/ui/io.py b/src/ui/io.py
+new file mode 100644
+index 0000000..00c919e
+--- /dev/null
++++ b/src/ui/io.py
+@@ -0,0 +1,42 @@
++"""JSON import/export of ``DesignInputs`` (UI side only; no design logic)."""
++
++from __future__ import annotations
++
++import dataclasses
++import json
++
++from design.inputs import ChordSpec, DesignInputs, GenericHoldDown, RodSystem, StoryInput
++
++SCHEMA_VERSION = 1
++
++
++def inputs_to_dict(inp: DesignInputs) -> dict:
++    d = dataclasses.asdict(inp)
++    for s_new, s in zip(d["stories"], inp.stories):
++        s_new["tiedown"]["type"] = "rod" if isinstance(s.tiedown, RodSystem) else "holddown"
++    d["schema_version"] = SCHEMA_VERSION
++    return d
++
++
++def inputs_to_json(inp: DesignInputs) -> str:
++    return json.dumps(inputs_to_dict(inp), indent=2)
++
++
++def inputs_from_dict(d: dict) -> DesignInputs:
++    version = d.get("schema_version", SCHEMA_VERSION)
++    if version != SCHEMA_VERSION:
++        raise ValueError(f"Unsupported inputs schema_version {version!r}; expected {SCHEMA_VERSION}")
++    stories = []
++    for s in d["stories"]:
++        s = dict(s)
++        chord = ChordSpec(**s.pop("chord"))
++        td = dict(s.pop("tiedown"))
++        kind = td.pop("type", "rod" if "system_id" in td else "holddown")
++        tiedown = RodSystem(**td) if kind == "rod" else GenericHoldDown(**td)
++        stories.append(StoryInput(chord=chord, tiedown=tiedown, **s))
++    top = {k: v for k, v in d.items() if k not in ("stories", "schema_version")}
++    return DesignInputs(stories=tuple(stories), **top)
++
++
++def inputs_from_json(text: str) -> DesignInputs:
++    return inputs_from_dict(json.loads(text))
+diff --git a/src/ui/runtime.py b/src/ui/runtime.py
+new file mode 100644
+index 0000000..93ee40f
+--- /dev/null
++++ b/src/ui/runtime.py
+@@ -0,0 +1,31 @@
++"""Path setup and data sources for the Streamlit app (works from source and when frozen by PyInstaller)."""
++
++from __future__ import annotations
++
++import subprocess
++import sys
++from pathlib import Path
++
++
++def repo_root() -> Path:
++    if getattr(sys, "frozen", False):  # PyInstaller bundle
++        return Path(getattr(sys, "_MEIPASS", Path(sys.executable).parent))
++    return Path(__file__).resolve().parents[2]
++
++
++def ensure_paths() -> Path:
++    """Make ``design``, ``analysis`` (src/) and ``woodworks_example`` (tests/) importable."""
++    root = repo_root()
++    for p in (root / "src", root / "tests"):
++        if p.is_dir() and str(p) not in sys.path:
++            sys.path.insert(0, str(p))
++    return root
++
++
++def git_commit() -> str:
++    try:
++        out = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=repo_root(), capture_output=True,
++                             text=True, timeout=3)
++        return out.stdout.strip() if out.returncode == 0 else ""
++    except Exception:
++        return ""
+diff --git a/src/ui/trace_export.py b/src/ui/trace_export.py
+new file mode 100644
+index 0000000..0672f74
+--- /dev/null
++++ b/src/ui/trace_export.py
+@@ -0,0 +1,62 @@
++"""Interim Markdown / JSON export of a DesignResult.
++
++The report builder (docs/spec-io.md section 6) owns the real report; this keeps the calc trace downloadable
++from the UI until that module is merged.
++"""
++
++from __future__ import annotations
++
++import json
++
++from design.result import DesignResult
++
++DISCLAIMER = "Prototype output. Needs review by a licensed engineer before any project use."
++
++
++def _num(v) -> str:
++    return f"{v:,.3f}".rstrip("0").rstrip(".") if isinstance(v, float) else str(v)
++
++
++def result_to_markdown(res: DesignResult) -> str:
++    inp = res.inputs
++    L = [f"# Shear wall stack calculation: {inp.project_name or 'untitled'}", "",
++         f"_{DISCLAIMER}_", "",
++         f"- Load type: **{res.load_type}**   - Editions: {', '.join(res.editions)}",
++         f"- Git commit: `{res.git_commit or 'unknown'}`",
++         f"- Overall: **{res.status.value}**" +
++         (f" (governing: {res.governing_check}, DCR {res.max_dcr:.3f})" if res.max_dcr is not None else ""), ""]
++    if res.input_errors:
++        L += ["## Input errors", *[f"- `{e.field}`: {e.message}" for e in res.input_errors], ""]
++    L += ["## Summary by story", "", "| Story | Status | Governing check | Max DCR |", "|---|---|---|---|"]
++    for s in res.stories:
++        L.append(f"| {s.story} | {s.status.value} | {s.governing_id or '-'} | "
++                 f"{'-' if s.max_dcr is None else f'{s.max_dcr:.3f}'} |")
++    L += ["", "## Needs engineer input", *([f"- {n.check_id} ({n.decision}): {n.message}" for n in res.needs_input]
++                                         or ["- none"]), ""]
++
++    def steps_table(steps):
++        rows = ["| Step | Symbol | Equation | Substitution | Value | Citation | Status |", "|---|---|---|---|---|---|---|"]
++        for st in steps:
++            rows.append(f"| {st.id} | {st.symbol} | `{st.equation_latex}` | {st.substitution} | "
++                        f"{_num(st.value)} {st.unit} | {st.citation} | {st.status} |")
++        return rows
++
++    if res.stack_steps:
++        L += ["## Stack: load combinations, story forces, chord forces", "", *steps_table(res.stack_steps), ""]
++    for s in res.stories:
++        L += [f"## Story {s.story}", ""]
++        for c in s.checks:
++            dcr = "" if c.dcr is None else f", DCR {c.dcr:.3f}"
++            L += [f"### {c.name} ({c.id}): {c.status.value}{dcr}", ""]
++            if c.message:
++                L += [f"> {c.message}", ""]
++            if c.steps:
++                L += [*steps_table(c.steps), ""]
++    L += ["## Items to verify", "",
++          f"- Calculation steps whose source is not verified: {len(res.unverified_steps)}",
++          *[f"- Component data: {x}" for x in res.component_items_to_verify], ""]
++    return "\n".join(L)
++
++
++def result_to_json(res: DesignResult) -> str:
++    return json.dumps(res.to_dict(), indent=2, default=str)
+diff --git a/tests/test_ui.py b/tests/test_ui.py
+new file mode 100644
+index 0000000..ce36c05
+--- /dev/null
++++ b/tests/test_ui.py
+@@ -0,0 +1,76 @@
++"""UI smoke tests: inputs round-trip, trace export, and the Streamlit app driven headlessly."""
++
++from pathlib import Path
++
++import pytest
++from woodworks_example import inputs as example_inputs
++from woodworks_example import library as example_library
++
++from design.engine import run_design
++from design.result import OverallStatus
++from ui import forms
++from ui.graphic import stack_svg
++from ui.io import inputs_from_json, inputs_to_json
++from ui.trace_export import result_to_json, result_to_markdown
++
++APP = str(Path(__file__).resolve().parents[1] / "src" / "ui" / "app.py")
++
++
++def test_inputs_json_round_trip():
++    inp = example_inputs()
++    assert inputs_from_json(inputs_to_json(inp)) == inp
++
++
++def test_frames_round_trip_matches_example():
++    inp = example_inputs()
++    g = forms.global_values_from_inputs(inp)
++    loads, chords, ties = forms.frames_from_inputs(inp)
++    assert forms.build_inputs(g, loads, chords, ties) == inp
++
++
++def test_resize_frames_grows_and_shrinks():
++    frames = forms.frames_from_inputs(example_inputs())
++    for n in (3, 5):
++        assert all(len(f) == n for f in forms.resize_frames(frames, n))
++    assert all(len(f) == 5 for f in forms.resize_frames(forms.resize_frames(frames, 2), 5))
++
++
++def test_exports_and_graphic_from_example_result():
++    inp = example_inputs()
++    res = run_design(inp, example_library())
++    assert res.status is OverallStatus.PASS
++    md = result_to_markdown(res)
++    assert "S4.shear" in md and "Prototype output" in md
++    assert '"status": "pass"' in result_to_json(res)
++    svg = stack_svg(inp, res)
++    assert svg.startswith("<svg") and svg.count("Story ") == 5
++
++
++def test_graphic_works_without_result():
++    assert stack_svg(example_inputs(), None).endswith("</svg>")
++
++
++def _app():
++    from streamlit.testing.v1 import AppTest
++    return AppTest.from_file(APP, default_timeout=60)
++
++
++def test_app_runs_example_and_passes():
++    at = _app().run()
++    assert not at.exception, at.exception
++    assert any("All checks pass" in s.value for s in at.success)
++
++
++def test_app_blank_length_is_reported_not_crashed():
++    at = _app().run()
++    at.number_input(key="g_b_ft").set_value(0.0).run()
++    assert not at.exception, at.exception
++    assert any("Fix these inputs" in e.value for e in at.error)
++
++
++def test_app_project_library_is_incomplete_not_pass():
++    at = _app().run()
++    at.radio(key="lib_source").set_value("Project component library (src/design/components/data)").run()
++    assert not at.exception, at.exception
++    assert not any("All checks pass" in s.value for s in at.success)
++    assert any("Incomplete" in w.value for w in at.warning)
+-- 
+2.43.0
+

@@ -24,6 +24,7 @@ from .schema import (
     Nail,
     SheathingPanel,
     ShearWallAssembly,
+    SizeFactor,
     SourcedRecord,
     Status,
 )
@@ -97,7 +98,12 @@ def read_records(path: Path, record_type: type[R]) -> list[R]:
     records: list[R] = []
     with path.open(newline="", encoding="utf-8") as fh:
         reader = csv.DictReader(fh)
-        missing = [name for name in field_names if name not in (reader.fieldnames or [])]
+        present = set(reader.fieldnames or [])
+        # Optional columns may be left out of a file; required ones may not.
+        missing = [
+            name for name in field_names
+            if name not in present and not _unwrap_optional(hints[name])[1]
+        ]
         if missing:
             raise ComponentDataError(f"{path.name}: missing columns {missing}")
         for line_no, row in enumerate(reader, start=2):
@@ -156,6 +162,7 @@ class ComponentLibrary:
     shear_wall_assemblies: list[ShearWallAssembly]
     holddowns: list[HoldDown]
     continuous_rod_systems: list[ContinuousRodSystem]
+    size_factors: list[SizeFactor] = dataclasses.field(default_factory=list)
 
     # ---- single-record lookups -------------------------------------------
 
@@ -211,6 +218,23 @@ class ComponentLibrary:
         )
         return _one(hits, "continuous rod systems", system_id=system_id)
 
+    def size_factor(self, grade: str, nominal: str, *, allow_pending: bool = False) -> SizeFactor:
+        """Table 4A size-factor row for a grade and a nominal size such as "2x6".
+
+        Maps the grade to the table's grade group and the nominal width to the
+        table's width label. Only Table 4A species use these (see SizeFactor).
+        """
+        group = _SIZE_FACTOR_GRADE_GROUP.get(grade)
+        if group is None:
+            raise LookupError(f"no Table 4A size-factor grade group for grade {grade!r}")
+        width = nominal.split("x")[-1]
+        label = _SIZE_FACTOR_WIDTH_LABEL.get((group, width))
+        if label is None:
+            raise LookupError(f"no Table 4A size-factor width label for {group!r}, width {width}\"")
+        crit = dict(grade_group=group, width_label=label)
+        hits = _select(self.size_factors, allow_pending, "size factor", **crit)
+        return _one(hits, "size factor rows", **crit)
+
     # ---- multi-record filters --------------------------------------------
 
     def assemblies(self, *, allow_pending: bool = False, **criteria) -> list[ShearWallAssembly]:
@@ -249,6 +273,35 @@ class ComponentLibrary:
         return out
 
 
+# Tables a data directory may leave out (loaded as empty).
+OPTIONAL_TABLES = {"size_factors"}
+
+# Grade -> Table 4A size-factor grade group (the table's own row label).
+_SIZE_FACTOR_GRADE_GROUP = {
+    "Select Structural": "Select Structural, No.1 & Btr, No.1, No.2, No.3",
+    "No.1 & Btr": "Select Structural, No.1 & Btr, No.1, No.2, No.3",
+    "No.1": "Select Structural, No.1 & Btr, No.1, No.2, No.3",
+    "No.2": "Select Structural, No.1 & Btr, No.1, No.2, No.3",
+    "No.3": "Select Structural, No.1 & Btr, No.1, No.2, No.3",
+    "Stud": "Stud",
+    "Construction": "Construction, Standard",
+    "Standard": "Construction, Standard",
+    "Utility": "Utility",
+}
+
+# (grade group, nominal width) -> Table 4A width label.
+_MAIN = "Select Structural, No.1 & Btr, No.1, No.2, No.3"
+_SIZE_FACTOR_WIDTH_LABEL = {
+    **{(_MAIN, w): '2", 3", & 4"' for w in ("2", "3", "4")},
+    (_MAIN, "5"): '5"', (_MAIN, "6"): '6"', (_MAIN, "8"): '8"',
+    (_MAIN, "10"): '10"', (_MAIN, "12"): '12"', (_MAIN, "14"): '14" & wider',
+    **{("Stud", w): '2", 3", & 4"' for w in ("2", "3", "4")},
+    ("Stud", "5"): '5" & 6"', ("Stud", "6"): '5" & 6"',
+    **{("Construction, Standard", w): '2", 3", & 4"' for w in ("2", "3", "4")},
+    ("Utility", "4"): '4"', ("Utility", "2"): '2" & 3"', ("Utility", "3"): '2" & 3"',
+}
+
+
 def load_library(data_dir: Optional[Path] = None) -> ComponentLibrary:
     """Load every table in ``data_dir`` (default: the package's ``data/``)."""
     data_dir = Path(data_dir) if data_dir is not None else DATA_DIR
@@ -256,6 +309,9 @@ def load_library(data_dir: Optional[Path] = None) -> ComponentLibrary:
     for name, record_type in RECORD_TYPES.items():
         path = data_dir / f"{name}.csv"
         if not path.exists():
+            if name in OPTIONAL_TABLES:
+                tables[name] = []
+                continue
             raise FileNotFoundError(f"component table not found: {path}")
         tables[name] = read_records(path, record_type)
     return ComponentLibrary(**tables)

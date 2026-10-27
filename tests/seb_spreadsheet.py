@@ -117,8 +117,8 @@ def component_dir(wb, dest: Path) -> Path:
             min_nominal_panel_thickness_label="15/32", min_nominal_panel_thickness_in=0.46875,
             min_fastener_penetration_in="", nail_designation="10d common",
             edge_nail_spacing_in=parse_spacing(dt[f"G{r}"].value),
-            v_seismic_nominal_plf=2.8 * vs / 2, Ga_osb_kips_per_in="" if ply else ga,
-            Ga_plywood_kips_per_in=ga if ply else "", v_wind_nominal_plf="", footnotes="",
+            v_n_plf=2.8 * vs / 2, Ga_osb_kips_per_in="" if ply else ga,
+            Ga_plywood_kips_per_in=ga if ply else "", footnotes="",
             table="Design Tables B7:M34", notes="v_n rescaled from SDPWS 2015 v_s: 2.8 (v_s / 2)", **common))
     rods = []
     for t, r in _table(wb, 80, 97).items():

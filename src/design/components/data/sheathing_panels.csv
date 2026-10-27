@@ -1,22 +1,26 @@
 panel_type,panel_grade,nominal_thickness_label,nominal_thickness_in,span_rating,exposure,Gvtv_lb_per_in,source_doc,table,page,status,entered_by,checked_by,notes
+OSB,Sheathing,5/16,0.3125,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 2. Fill span_rating/exposure if the drift model or detailing needs them
 OSB,Sheathing,3/8,0.375,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 2. Fill span_rating/exposure if the drift model or detailing needs them
 OSB,Sheathing,7/16,0.4375,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 2. Fill span_rating/exposure if the drift model or detailing needs them
 OSB,Sheathing,15/32,0.46875,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 2. Fill span_rating/exposure if the drift model or detailing needs them
 OSB,Sheathing,1/2,0.5,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 2. Fill span_rating/exposure if the drift model or detailing needs them
 OSB,Sheathing,19/32,0.59375,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 2. Fill span_rating/exposure if the drift model or detailing needs them
 OSB,Sheathing,5/8,0.625,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 2. Fill span_rating/exposure if the drift model or detailing needs them
+OSB,Structural I,5/16,0.3125,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 2. Fill span_rating/exposure if the drift model or detailing needs them
 OSB,Structural I,3/8,0.375,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 2. Fill span_rating/exposure if the drift model or detailing needs them
 OSB,Structural I,7/16,0.4375,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 2. Fill span_rating/exposure if the drift model or detailing needs them
 OSB,Structural I,15/32,0.46875,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 2. Fill span_rating/exposure if the drift model or detailing needs them
 OSB,Structural I,1/2,0.5,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 2. Fill span_rating/exposure if the drift model or detailing needs them
 OSB,Structural I,19/32,0.59375,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 2. Fill span_rating/exposure if the drift model or detailing needs them
 OSB,Structural I,5/8,0.625,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 2. Fill span_rating/exposure if the drift model or detailing needs them
+Plywood,Sheathing,5/16,0.3125,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 1. Fill span_rating/exposure if the drift model or detailing needs them
 Plywood,Sheathing,3/8,0.375,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 1. Fill span_rating/exposure if the drift model or detailing needs them
 Plywood,Sheathing,7/16,0.4375,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 1. Fill span_rating/exposure if the drift model or detailing needs them
 Plywood,Sheathing,15/32,0.46875,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 1. Fill span_rating/exposure if the drift model or detailing needs them
 Plywood,Sheathing,1/2,0.5,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 1. Fill span_rating/exposure if the drift model or detailing needs them
 Plywood,Sheathing,19/32,0.59375,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 1. Fill span_rating/exposure if the drift model or detailing needs them
 Plywood,Sheathing,5/8,0.625,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 1. Fill span_rating/exposure if the drift model or detailing needs them
+Plywood,Structural I,5/16,0.3125,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 1. Fill span_rating/exposure if the drift model or detailing needs them
 Plywood,Structural I,3/8,0.375,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 1. Fill span_rating/exposure if the drift model or detailing needs them
 Plywood,Structural I,7/16,0.4375,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 1. Fill span_rating/exposure if the drift model or detailing needs them
 Plywood,Structural I,15/32,0.46875,,,,SDPWS 2021,Table 4.3A (nominal panel thickness),,pending,,,Panel standard PS 1. Fill span_rating/exposure if the drift model or detailing needs them
