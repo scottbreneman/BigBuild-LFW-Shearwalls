@@ -14,30 +14,49 @@ From the repo root, with the project venv:
 
 ## Layout
 
-Top row: **Project settings** (stories, wall length, risk category, SDC, S_DS, C_d, I_e, wind drift limit, roof uplift) and
-**Capacities and data** (component data source, status counts, a browser for the capacity tables). Below, three columns:
-**wall inputs** for the selected story (left), the **selected shear wall** as a free-body diagram (middle), and
-**capacities and checks** (right). The **wall stack summary** (elevation, DCR bars, schedule) sits underneath.
+The **Design** tab reads top to bottom in the order an engineer works:
+
+1. **Status first.** A banner (pass / FAIL / incomplete) naming the governing case, story and check, and four key numbers:
+   max DCR, governing case, base shear and the stack size.
+2. **Project settings**, collapsed to a one-line summary. Inside, grouped as Geometry, Seismic, Wind and Analysis options.
+   Short option lists (stories 1–5, wind drift limit, 3-/4-term, dry/green) are always-visible segmented controls; the
+   analysis switches are toggles.
+3. **One control row**: the **story** selector, the **edit mode** (*One story*, or *All stories* to edit every story at
+   once in spreadsheet-like tables), *Show all library options*, and **Auto-size**.
+4. **Story view**: wall inputs on the left in tabs (Loads, Nailing, Posts, Tie-down); on the right the free-body diagram
+   with a table of its key forces, and the **checks table** with DCR bars. **Select a check row to open its calc trace**
+   in a side drawer.
+5. **Wall stack summary**: the elevation coloured by DCR, a **story × check heatmap** (click a cell to select that
+   story), and the **schedule** as a sortable table with DCR bars.
 
 Seismic and wind forces (lb) are entered per story. Each load type that has a force is run through the engine and,
 check by check, the larger demand/capacity ratio is shown with the case that produced it (S or W). There is no load-type
 button: leave a load type at 0 on every story to skip it.
 
-## Report button and tabs
+**Auto-size** (control row, or the Materials tab) opens a dialog with the proposal: proposed selections per story, the
+worst-case DCRs after the change, and *Apply proposal*.
 
-The top-right **Calculation report** button downloads the self-contained HTML report (from `src/report`) for the governing
+## Header, report and tabs
+
+The header holds a **File** menu (open inputs, save inputs with the preferred materials, load the WoodWorks example) and the
+**Calculation report** button, which downloads the self-contained HTML report (from `src/report`) for the governing
 load case; print it to PDF from the browser. The **Report** tab lets you pick Governing, Seismic or Wind, download the HTML,
 Markdown, full result JSON or inputs JSON, and preview the report in the page. The report loads KaTeX from a CDN; behind a
-firewall the LaTeX source shows instead. **Engineering basis** lists the editions, every code factor in
+firewall the LaTeX source shows instead. **Materials** holds the component library (data source, status counts, table
+browser) and the preferred materials. **Engineering basis** lists the editions, every code factor in
 `src/design/factors.py` with its citation and status, the load combinations, stack forces and chord forces, the component
 tables and `docs/design-engine.md`. **Items to verify** adds the open engine checklist. A test
 (`test_app_exposes_every_design_input_field`) fails if the engine gains an input the form does not expose.
+
+The theme lives in `.streamlit/config.toml` (green primary colour; red is kept for failing checks). The packaged app's
+launcher passes the same values as flags; keep the two in step.
 
 ## What is where
 
 | File | Purpose |
 | --- | --- |
-| `src/ui/app.py` | Streamlit page (Design, Calc trace, Items to verify, Report tabs) |
+| `src/ui/app.py` | Streamlit page (Design, Materials, Calc trace, Engineering basis, Items to verify, Report tabs) |
+| `src/ui/tables.py` | Result tables as pandas frames for native tables and the heatmap (checks, schedule, auto-size) |
 | `src/ui/loadcases.py` | Runs the engine once per load case and reports the governing case per check and story. Could move into `src/design/` |
 | `src/ui/reports.py` | Wraps `src/report` (`build_report`, `build_markdown`) for one load case; "Governing" picks the case with the larger max DCR |
 | `src/ui/example.py` | The WoodWorks example as a seismic case (Chapter 3) plus a wind case (Tables 4.4 and 4.6); lists the placeholder values |
@@ -46,7 +65,7 @@ tables and `docs/design-engine.md`. **Items to verify** adds the open engine che
 | `src/ui/theme.py` | Green card CSS and HTML builders (KPI row, schedule, checks panel, DCR bars). Presentation only |
 | `src/ui/fbd.py` | Free-body loading diagram SVG; every value comes from the calc trace |
 | `src/ui/graphic.py` | Stack elevation SVG coloured by DCR |
-| `.streamlit/config.toml` | Green Streamlit theme; the packaged app passes the same values as flags |
+| `.streamlit/config.toml` | Green Streamlit theme and minimal toolbar; the packaged app passes the same values as flags |
 | `packaging/` | PyInstaller spec, launcher, `build_exe.bat`, `run_app.bat` |
 | `tests/test_ui.py` | Round-trip, envelope, export and headless app tests |
 

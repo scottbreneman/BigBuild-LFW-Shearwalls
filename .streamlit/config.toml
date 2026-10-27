@@ -1,0 +1,14 @@
+# Theme for `streamlit run src/ui/app.py`. packaging/launcher.py passes the same values as flags for the
+# packaged app; keep the two in step. Green is the brand colour; red is left for checks that fail.
+[theme]
+base = "light"
+primaryColor = "#15803D"
+backgroundColor = "#F5FAF6"
+secondaryBackgroundColor = "#E8F3EB"
+textColor = "#1E293B"
+
+[client]
+toolbarMode = "minimal"  # hide the Deploy menu
+
+[browser]
+gatherUsageStats = false

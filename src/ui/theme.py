@@ -82,8 +82,8 @@ table.sched td{padding:9px 8px;border-bottom:1px solid #e6efe9;text-align:right;
 table.sched td.txt{font-family:var(--sans);}
 table.sched tr.sel td{background:var(--g0);}
 .eqline{font-family:var(--mono);font-size:.72rem;color:#475569;margin-top:10px;}
-.stButton>button,.stDownloadButton>button{border-radius:10px;border:1.5px solid var(--g7);color:var(--g8);font-weight:600;background:#fff;}
-.stButton>button:hover,.stDownloadButton>button:hover{background:var(--g0);border-color:var(--g8);color:var(--g8);}
+.stButton>button:not([kind="primary"]),.stDownloadButton>button:not([kind="primary"]){border-radius:10px;border:1.5px solid var(--g7);color:var(--g8);font-weight:600;background:#fff;}
+.stButton>button:not([kind="primary"]):hover,.stDownloadButton>button:not([kind="primary"]):hover{background:var(--g0);border-color:var(--g8);color:var(--g8);}
 button[role="tab"][aria-selected="true"]{color:var(--g8)!important;}
 
 /* chips and check rows */

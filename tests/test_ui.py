@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from woodworks_example import inputs as seismic_example
 from woodworks_example import library as example_library
 
@@ -124,10 +126,16 @@ def test_app_has_cards_kpis_fbd_checks_and_schedule():
     at = _app().run()
     assert not at.exception, at.exception
     html = " ".join(m.value for m in at.markdown)
-    assert "Shear Wall Stack Designer" in html and 'class="kpis"' in html and "Governing Load Case" in html
-    assert "Shear wall: story 1" in html and "Capacities and checks: story 1" in html
-    assert 'class="checks"' in html and 'class="sched"' in html and "Wall stack summary" in html
-    assert "data:image/svg+xml;base64," in html
+    assert "Shear Wall Stack Designer" in html
+    labels = [m.label for m in at.metric]
+    assert labels[:4] == ["Max demand / capacity", "Governing case · story 4", "Base shear V (strength)", "Wall stack"]
+    assert "Shear wall: story 1" in html and "Capacities and checks: story 1" in html and "Wall stack summary" in html
+    frames = [d.value for d in at.dataframe]
+    checks = next(f for f in frames if "Check" in f.columns and "DCR" in f.columns)
+    assert "Sheathing shear" in set(checks["Check"]) and checks["DCR"].max() <= 1.0
+    sched = next(f for f in frames if "Shear" in f.columns and "Nailing" in f.columns)
+    assert list(sched["Story"]) == [5, 4, 3, 2, 1]
+    assert "data:image/svg+xml;base64," in html  # free-body diagram and stack elevation
 
 
 def test_app_blank_length_is_reported_not_crashed():
@@ -160,9 +168,9 @@ def test_app_fixture_source_loads_its_own_example_and_preset():
 
 def test_app_story_count_and_story_selection_do_not_crash():
     at = _app().run()
-    at.selectbox(key="n_stories").set_value(3).run()
+    at.segmented_control(key="n_stories").set_value(3).run()
     assert not at.exception, at.exception
-    at.selectbox(key="sel_story").set_value(3).run()
+    at.segmented_control(key="sel_story").set_value(3).run()
     assert not at.exception, at.exception
     assert "Shear wall: story 3" in " ".join(m.value for m in at.markdown)
 
@@ -173,7 +181,7 @@ def test_app_large_wind_force_makes_wind_govern():
     at.number_input(key=f"w{ver}_1_F_wind_lb").set_value(80000.0).run()
     assert not at.exception, at.exception
     assert any("FAIL" in e.value for e in at.error)
-    assert "Wind" in " ".join(m.value for m in at.markdown if "kpi" in m.value)
+    assert any(m.value == "Wind" for m in at.metric)  # governing-case card
 
 
 def test_app_single_load_case_still_works():
@@ -269,9 +277,9 @@ def test_new_engine_options_round_trip_and_reach_the_engine():
 
 def test_app_new_engine_options_do_not_crash():
     at = _app().run()
-    at.selectbox(key="g_deflection_method").set_value("4-term").run()
+    at.segmented_control(key="g_deflection_method").set_value("4-term").run()
     assert not at.exception, at.exception
-    at.checkbox(key="g_restraint_each_level").set_value(False).run()
+    at.toggle(key="g_restraint_each_level").set_value(False).run()
     assert not at.exception, at.exception
 
 
@@ -326,3 +334,25 @@ def test_app_materials_tab_and_autosize_apply_for_both_load_cases():
     assert "autosize" not in at.session_state
     _, chords, _ = at.session_state["base_frames"]
     assert set(chords["layout"]) == {"example"}  # posts now follow the layout rule
+
+
+def test_app_all_stories_table_mode_edits_reach_the_engine():
+    at = _app().run()
+    at.segmented_control(key="edit_mode").set_value("All stories").run()
+    assert not at.exception, at.exception
+    assert "All stories" in " ".join(m.value for m in at.markdown)
+    at.segmented_control(key="edit_mode").set_value("One story").run()  # back again: per-story widgets rebuilt
+    assert not at.exception, at.exception
+    assert any("All checks pass" in s.value for s in at.success)
+
+
+def test_result_tables_from_the_example():
+    from ui import tables
+    cs = run_cases(example_cases(), example_library())
+    ck = tables.checks_frame(cs, 4)
+    assert ck.loc[ck["Check"] == "Sheathing shear", "DCR"].iloc[0] == pytest.approx(0.972, abs=1e-3)
+    hm = tables.heatmap_frame(cs, 5)
+    assert len(hm) == 35 and set(hm["Check"]) == set(tables.HEAT_COLS)
+    assert (hm.loc[hm["DCR"] > 0.9, "Band"] == "0.90–1.00").all()
+    sch = tables.schedule_frame(cs, 5)
+    assert list(sch["Story"]) == [5, 4, 3, 2, 1] and (sch["Status"] == "pass").all()
