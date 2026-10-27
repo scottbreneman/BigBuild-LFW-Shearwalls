@@ -8,3 +8,8 @@ __pycache__/
 .streamlit/secrets.toml
 outputs/
 .DS_Store
+
+# Local-only engineering spreadsheets (licensed / private; never commit)
+references/*.xlsx
+references/*.xlsb
+references/*.xlsm
