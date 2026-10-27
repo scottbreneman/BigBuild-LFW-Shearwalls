@@ -97,7 +97,12 @@ def read_records(path: Path, record_type: type[R]) -> list[R]:
     records: list[R] = []
     with path.open(newline="", encoding="utf-8") as fh:
         reader = csv.DictReader(fh)
-        missing = [name for name in field_names if name not in (reader.fieldnames or [])]
+        present = set(reader.fieldnames or [])
+        # Optional columns may be left out of a file; required ones may not.
+        missing = [
+            name for name in field_names
+            if name not in present and not _unwrap_optional(hints[name])[1]
+        ]
         if missing:
             raise ComponentDataError(f"{path.name}: missing columns {missing}")
         for line_no, row in enumerate(reader, start=2):

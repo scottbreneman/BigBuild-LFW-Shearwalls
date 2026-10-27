@@ -76,6 +76,14 @@ class LumberSize(SourcedRecord):
     thickness_in: float = 0.0
     width_in: float = 0.0
 
+    # Section properties as printed in NDS Supplement Table 1B, kept so a test
+    # can confirm the computed rectangle properties agree with the table.
+    table_area_in2: Optional[float] = None
+    table_Sxx_in3: Optional[float] = None
+    table_Ixx_in4: Optional[float] = None
+    table_Syy_in3: Optional[float] = None
+    table_Iyy_in4: Optional[float] = None
+
     @property
     def area_in2(self) -> float:
         return self.thickness_in * self.width_in
