@@ -15,6 +15,10 @@ Everything marked `memory` below was written from memory by Claude and is **not 
 | Design spectral acceleration | S_DS | unitless | Seismic only |
 | Deflection amplification factor | C_d | unitless | Seismic drift only (Stage C) |
 | Importance factor | I_e | unitless | Seismic drift only (Stage C) |
+| Risk category | | I to IV | Seismic drift limit; only I and II (0.020 h_sx) are entered |
+| Seismic design category | SDC | A to F | 3x framing detailing flag (SDPWS §4.3.7.1 item 5) |
+| Wind drift limit | r_w | unitless ratio | Wind only. Allowable story drift / story height, e.g. 1/400. User supplied (decision D6) |
+| Net roof uplift on the wall | w_up | plf | Wind only, strength level; adds w_up b²/2 to overturning (example §4.5.2) |
 
 ### Wall (same for every story in the stack)
 
@@ -28,8 +32,11 @@ Everything marked `memory` below was written from memory by Claude and is **not 
 | Name | Symbol | Unit | Notes |
 | --- | --- | --- | --- |
 | Story height | h_i | ft | Floor-to-floor wall height |
-| Applied lateral force at level i | F_i | lb | ASD level, already combined for the chosen load type (decision D8) |
+| Applied lateral force at level i | F_i | lb | **Strength level** (E_h or W). The engine applies 0.7E_h / 0.6W and the drift combinations (decision D8) |
 | Dead load on the wall at level i | w_D,i | plf | Uniform along the wall, excluding wall self-weight |
+| Live and roof live load at level i | w_L,i, w_Lr,i | plf | For chord compression combinations |
+| Chord posts | n, size, species, grade | | Compression posts at each wall end; chord length L_c (ft) and lever arm d (ft) |
+| Tie-down | | | Generic hold-down (model or T_allow, Δ_a) or continuous rod (rod id, bearing plate W × L × t, F_y, slack, take-up elongation) |
 | Wall self-weight | w_wall,i | plf | Optional |
 | Nailing selection | | table row id | One row of the capacity table: panel grade, thickness, nail, edge spacing |
 | Sheathing sides | | 1 or 2 | Combination rule for two sides is an engineer decision |
@@ -67,15 +74,23 @@ class Step:
 
 @dataclass(frozen=True)
 class CheckResult:
-    name: str            # "Shear in story 2"
-    demand: float
-    capacity: float
-    dcr: float
-    passed: bool
-    steps: list[Step]
+    id: str              # "S2.shear"
+    name: str            # "Sheathing shear, story 2"
+    story: int
+    category: str        # shear | detailing | aspect | compression | holddown | rod | plate_bearing | plate_bending | drift
+    status: CheckStatus  # pass | fail | needs_input | info | not_applicable
+    demand: float | None
+    capacity: float | None
+    dcr: float | None
+    demand_unit: str
+    capacity_unit: str
+    message: str         # e.g. the needs-input text
+    decision: str        # decision id when status is needs_input ("D3", "component data")
+    steps: tuple[Step, ...]
+    # properties: passed, worst_source
 ```
 
-The calc builder owns these types in `src/design/`. If a provision is not settled, the check raises `NeedsEngineerInput("D3 aspect-ratio reduction")` and the screen shows that message beside the check.
+The calc builder owns these types in `src/design/trace.py`; the engine entry point is `design.engine.run_design(inputs) -> DesignResult` (see [design-engine.md](design-engine.md)). If a provision is not settled, the check raises `NeedsEngineerInput("D3 aspect-ratio reduction")` and the screen shows that message beside the check.
 
 ## 3. Equations
 
@@ -86,15 +101,20 @@ Subscript i = story. Heights H_i are elevations of level i above the base of sto
 | ID | Equation | Citation | Status |
 | --- | --- | --- | --- |
 | A1 | Story shear V_i = Σ F_j for j ≥ i; unit shear v_i = V_i / b | statics | statics |
-| A2 | v_allow,i = v_n,i / Ω, with v_n from the capacity table (seismic or wind column) and Ω = 2.0 | SDPWS-2021 §4.3.3, Table 4.3A | memory |
+| A2 | v_allow,i = n_sides · v_n,i / Ω, with v_n from the capacity table; Ω = 2.8 seismic, 2.0 wind; two sides double the capacity when both sides match | SDPWS-2021 §4.1.4.1, §4.1.4.2, §4.3.5.4.1, Table 4.3A; example §3.3.4, §4.2 | memory |
 | A3 | Shear DCR = v_i / v_allow,i | definition | statics |
-| A4 | Aspect ratio h_i / b ≤ 3.5 | SDPWS-2021 Table 4.3.4 | memory |
+| A4 | Aspect ratio h_i / b ≤ 2.0 with no adjustment; above 2.0 the check returns needs-input (D3) | SDPWS-2021 §4.3.3; example §3.3 | memory |
 | A5 | Capacity adjustment for h/b greater than 2 | SDPWS-2021 §4.3.4 | **not entered; decision D3** |
 | A6 | Overturning at the bottom of story i: M_i = Σ F_j (H_j − H_{i−1}) for j ≥ i | statics | statics |
 | A7 | Resisting moment M_res,i = λ · w_i · b² / 2, where w_i = Σ (w_D,j + w_wall,j) for j ≥ i is the cumulative uniform dead load (plf) at the bottom of story i | statics for the arm; λ below | statics |
-| A8 | λ for wind = 0.6; for seismic λ = 0.6 − 0.14 S_DS | ASCE 7-22 §2.4.1 combinations 8 and 9, with E_v = 0.2 S_DS D from §12.4.2.2 | memory |
+| A8 | Tension: seismic 0.6 − 0.14 S_DS (combo 10, with 0.7E_h); wind 0.6 (combo 7a, with 0.6W) | ASCE 7-22 §2.4.5 combo 10, §2.4.1 combo 7a, E_v = 0.2 S_DS D per §12.4.2.2; example §3.3.6, §4.5 | memory |
 | A9 | Net chord and hold-down tension T_i = max(0, (M_i − M_res,i) / d_arm) | statics; lever arm d_arm per D2; stack method per D5 | assumption |
-| A10 | Hold-down DCR = T_i / T_allow,i | definition | statics |
+| A10 | Hold-down DCR = T_i / T_allow,i (rod system: T_i vs rod allowable from the component library) | definition | statics |
+| A11 | Chord compression C = max of seismic combos 8: (1 + 0.14 S_DS) P_D + 0.7 C_E and 9: (1 + 0.105 S_DS) P_D + 0.525 C_E + 0.75 P_L; wind 5a: P_D + 0.6 C_W and 6a: P_D + 0.75 P_L + 0.45 C_W + 0.75 P_Lr; P_D = w_D L_c; C_E = M_OT / d | ASCE 7-22 §2.4.5, §2.4.1; example §3.3.5, Table 3.8 | memory |
+| A12 | Post capacity P_allow = min(F'_c, F'_c⊥) n A_post; F'_c = F_c C_D C_M C_t C_F C_i C_P, C_D = 1.6, l_e = h − plates, out-of-plane axis | NDS-2024 §3.6, §3.7.1 Eq. 3.7-1, §3.10; example §3.3.5, Table 3.9 | memory |
+| A13 | Bearing plate: ΔT_i ≤ F_c⊥ C_b (W L − π (d_rod + 3/16)² / 4), C_b = (l_b + 0.375) / l_b | NDS-2024 §3.10.4; example §3.3.6, Table 3.12 | memory |
+| A14 | Plate bending: f W (L/2)² / 2 ≤ F_y (W − d_rod − 1/16) t² / 4 / 1.67 | AISC 360-22 Eq. F11-1; example §3.3.6 | memory |
+| A15 | Differential tension per floor ΔT_i = max(0, T_i − T_i+1) | statics; example Table 3.10 | statics |
 
 The default lever arm for D2 is d_arm = b − d_post / 12 (ft), post-center to post-center.
 
@@ -102,10 +122,10 @@ The default lever arm for D2 is d_arm = b − d_post / 12 (ft), post-center to p
 
 | ID | Equation | Citation | Status |
 | --- | --- | --- | --- |
-| C1 | δ_sw,i = 8 v h³ / (E A b) + v h / (1000 G_a) + h Δ_a / b, in inches, with v in plf, h and b in ft, E in psi, A in in², G_a in kip/in, Δ_a in in | SDPWS-2021 Eq. 4.3-1; WoodWorks example §3.4.2 | memory |
+| C1 | δ_sw,i = 8 v h³ / (E A b) + v h / (1000 G_a) + h Δ_a / b, in inches, with v in plf, h and b in ft, E in psi, A in in², G_a in kip/in, Δ_a in in. Rod systems: Δ_a = (rod elongation + crushing + bearing-plate crushing + slack + take-up) b / d | SDPWS-2021 Eq. 4.3-1; WoodWorks example §3.4.2-3.4.3, Fig. 3.10 | memory |
 | C2 | Seismic amplified deflection δ_x = C_d δ_se / I_e | ASCE 7-22 §12.8.6 | memory |
-| C3 | Story drift Δ_i = δ_x,i − δ_x,i−1 including the rotation carried up from lower stories | WoodWorks example §3.4.3 to §3.4.5; decision D6 | assumption |
-| C4 | Wind: report δ and story drift only. No code limit is applied; the owner or project sets the criterion | ASCE 7-22 Appendix C (serviceability, non-mandatory) | memory |
+| C3 | Story drift: each story analysed floor to floor, δ_sw,i used as the elastic story drift; seismic Δ_i = C_d δ_sw,i / I_e ≤ 0.020 h_sx (Risk Category I, II). Rotation carried up from lower stories is not applied (option returns needs-input) | WoodWorks example §3.4.4-3.4.5; ASCE 7-22 Table 12.12-1; decision D6 | assumption |
+| C4 | Wind: δ_sw,i at v = 1.0W/b, chord tension 0.6D + 1.0W, no C_d or I_e; check δ_sw,i ≤ r_w h_i with the user-supplied wind drift limit r_w. Without r_w the check returns needs-input | ASCE 7-22 Appendix C commentary (non-mandatory); example §4.6; decision D6 | assumption |
 
 ## 4. Decisions the engineers settle
 
@@ -116,9 +136,9 @@ Record each answer here with initials, then update the status of the affected ro
 - [ ] D3 Aspect-ratio limit and the capacity adjustment for h/b greater than 2. Read SDPWS-2021 §4.3.4 before coding.
 - [ ] D4 Which dead load counts for resisting moment (self-weight, point loads from posts) and the λ factors in A8.
 - [ ] D5 Stack chord force method: from the overturning moment, or cumulative story uplift. Match the reference example §3.3.6.
-- [ ] D6 Drift: load level for v in C1 (ASD or strength) and the story-drift definition.
+- [ ] D6 Drift: load level for v in C1 (ASD or strength) and the story-drift definition. Seismic follows the example (strength level, floor to floor). **Wind (owner, 2026-10-27): check against a user-provided drift limit; forces 1.0W and 0.6D + 1.0W.**
 - [ ] D7 Tolerances for comparing results with the answer key.
-- [ ] D8 Confirm applied story forces are supplied at ASD level (0.7E for seismic, 0.6W for wind).
+- [x] D8 Applied story forces are supplied at **strength level**; the engine applies 0.7E_h / 0.6W and the drift combinations (owner, 2026-10-27; matches example Tables 3.4 and 4.4).
 
 ## 5. Results
 
