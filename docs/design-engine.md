@@ -45,6 +45,25 @@ The DCR is demand / capacity. PASS means DCR ≤ 1.0. Colour bands belong to the
 
 The answer-key test ([tests/test_woodworks_seismic.py](../tests/test_woodworks_seismic.py)) uses a test-only component set transcribed from the example ([tests/fixtures/woodworks_components/](../tests/fixtures/woodworks_components/)). It reproduces example Tables 3.5 to 3.19 within a provisional tolerance (D7). That is a regression benchmark, not engineering validation.
 
+## Preferred materials and auto-size
+
+- **`design.preferences.MaterialPreferences`** holds preferred assembly ids, sides, panel types, lumber (species, grade, size class), post sizes, the min/max post count, rod ids and hold-down models. An empty list means no restriction.
+  - Save and load it with `to_json` / `from_json`.
+  - `check_against(lib)` lists ids missing from the library and counts unverified preferred rows.
+  - `*_options(lib)` return library rows in ascending capacity: n·v_n, F_c, and allowable tension.
+- **`design.autosize.autosize(inputs, lib, prefs)`** returns `AutosizeResult(proposed, stories, before, result)`. For each story it picks, in order:
+  1. nailing and sides (shear)
+  2. chord posts: lumber × size × count, by ascending capacity (compression)
+  3. the story's rod or hold-down (tension)
+- Each trial runs only the one check being sized. `result` is the full design of `proposed`, so drift and plate checks are reported. Drift is not driven (owner decision).
+- **Chord layout rule (`ChordSpec.layout="example"`):** chord length and lever arm follow from the post count. 3 posts sit outboard of the rod and the rest inboard after a 6 in. gap:
+  - X_t = 3t + g/2
+  - X_c = post centroid
+  - L_c = (n t + g)/12
+  - d = b − (X_t + X_c)/12
+- The rule reproduces example Tables 3.6 and 3.8 and SEB post types N1–N5 (status `assumption`).
+- C_F for chord compression now comes from the library's verified NDS Table 4A size factors where available.
+
 ## Deflection options (spec-io C1a, C5–C7; decision D6)
 
 The default is the example's method: SDPWS 3-term, floor to floor, with take-up devices and restraint at every level.

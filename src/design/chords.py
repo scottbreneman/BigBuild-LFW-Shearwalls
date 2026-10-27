@@ -61,7 +61,7 @@ def chord_forces(inp: DesignInputs, forces: list[StoryForces], combos: ComboSet)
         tc = combos.tension
         T = _tension(t, "asd", tc.name, tc.D, tc.E, M_R, sf.M_OT_ftlb, d, f"{EX} Table 3.10", "memory")
 
-        Lc = s.chord.chord_length_ft
+        Lc = sf.chord_length_ft
         P_D = t.step("P_D", "Dead load tributary to chord", "P_D", r"P_D = w_D L_c",
                      f"{fmt(sf.w_D_plf, 0)}({fmt(Lc, 3)})", sf.w_D_plf * Lc, "lb", f"{EX} §3.3.5, Table 3.8",
                      "assumption", note="Chord length includes all posts and the rod gap (example Fig. 3.7)")

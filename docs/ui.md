@@ -25,6 +25,22 @@ From the repo root, with the project venv:
 | `packaging/` | PyInstaller spec, launcher, `build_exe.bat`, `run_app.bat` |
 | `tests/test_ui.py` | Round-trip, export and headless app tests |
 
+## Materials tab: preferred materials and auto-size
+
+The **Materials** tab narrows the component library to the materials an office or project prefers:
+- nailing assemblies (with the allowed sheathed sides and panel type)
+- lumber species, grade and size class (with post sizes and a min/max post count)
+- rod systems
+- hold-downs
+
+Each table shows the library row's values and its status. An empty selection means no restriction.
+
+- **Presets.** Shipped presets live in `presets/` (`woodworks-example.json` and `starter-office.json`). Load one, or upload an office preset, and download the current selection as JSON. The project's copy is saved inside the downloaded inputs file (schema version 2); version 1 files still load.
+- **Dropdowns.** The Inputs-tab dropdowns show only preferred options unless *Show all library options* is on. A current selection is always kept.
+- **Auto-size** (Inputs tab) calls `design.autosize.autosize`. It proposes, for each story, the lightest preferred nailing, chord posts and tie-down that pass the strength checks. The proposal table shows the changes and the DCRs before and after; **Apply proposal** writes them into the inputs.
+  - Posts use the example layout rule (chord *Geometry* = `example`).
+  - Drift is reported, not driven.
+
 ## Component data source
 
 The sidebar offers two sources. *WoodWorks example components* are the answer-key fixtures in

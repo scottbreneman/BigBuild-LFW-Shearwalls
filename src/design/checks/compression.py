@@ -32,6 +32,18 @@ def chord_posts(ctx: Context, chord: ChordSpec) -> Posts:
     return Posts(size, vals, chord.n_posts)
 
 
+def _size_factor_Fc(ctx: Context, chord: ChordSpec) -> fx.Factor:
+    """C_F for F_c: the library's NDS Table 4A row when there is one, else the example's value in factors.py."""
+    if ctx.lib.size_factors:
+        try:
+            rec = ctx.lib.size_factor(chord.grade, chord.post_nominal)
+        except LookupError:
+            rec = None
+        if rec is not None:
+            return fx.Factor(value(rec, "CF_Fc", f"{chord.grade} {chord.post_nominal}"), cite(rec), status(rec))
+    return fx.size_factor_Fc(chord.species_group, chord.grade, chord.post_nominal)
+
+
 def check_compression(ctx: Context, i: int) -> CheckResult:
     s, ch = ctx.story(i), ctx.ch(i)
     c = s.chord
@@ -58,8 +70,9 @@ def check_compression(ctx: Context, i: int) -> CheckResult:
                 fx.K_e.value * lu, "in", fx.K_e.citation, fx.K_e.status)
     sl = t.step("le_d", "Slenderness ratio", "l_e/d", "l_e / d", f"{fmt(le, 1)} / {d}", le / d, "", "statics",
                 "statics")
-    CF = fx.size_factor_Fc(c.species_group, c.grade, c.post_nominal)
-    t.step("C_F", "Size factor for F_c", "C_F", "table", "", CF.value, "", CF.citation, CF.status)
+    CF = _size_factor_Fc(ctx, c)
+    t.step("C_F", "Size factor for F_c", "C_F", "table", f"{c.grade} {c.post_nominal}", CF.value, "", CF.citation,
+           CF.status)
     CD, CM, Ct, Ci = fx.C_D_LATERAL, fx.C_M, fx.C_t, fx.C_i
     for f, sym in ((CD, "C_D"), (CM, "C_M"), (Ct, "C_t"), (Ci, "C_i")):
         t.step(sym, f"Adjustment factor {sym}", sym, "", "", f.value, "", f.citation, f.status)

@@ -24,7 +24,22 @@ class StoryForces:
     w_L_plf: float
     w_Lr_plf: float
     d_arm_ft: float  # chord lever arm
+    chord_length_ft: float  # chord length carrying gravity load to the posts
     steps: tuple[Step, ...]
+
+
+def example_layout(n: int, t_in: float, gap_in: float, outboard: int, b_ft: float) -> tuple[float, float, float, float]:
+    """(X_t, X_c, chord length, d) for the example layout: posts of thickness t along the wall,
+    ``outboard`` of them beyond the rod, the rest inboard after a ``gap`` (example Figs. 3.7-3.8).
+
+    X_t: wall end to rod centre (in.); X_c: wall end to the post centroid (in.).
+    """
+    out = min(n, outboard)
+    xs = [t_in * (k + 0.5) for k in range(out)]
+    xs += [out * t_in + gap_in + t_in * (k + 0.5) for k in range(n - out)]
+    x_t = out * t_in + gap_in / 2
+    x_c = sum(xs) / n
+    return x_t, x_c, (n * t_in + gap_in) / 12, b_ft - (x_t + x_c) / 12
 
 
 def stack_forces(inp: DesignInputs) -> list[StoryForces]:
@@ -70,7 +85,21 @@ def stack_forces(inp: DesignInputs) -> list[StoryForces]:
                "statics", "statics")
 
         s = inp.stories[i - 1]
-        if s.chord.d_arm_ft is not None:
+        c = s.chord
+        if c.layout == "example":
+            cite_ex = "statics; WoodWorks 5-story example Figs. 3.7-3.8, Table 3.6 (post layout)"
+            x_t, x_c, Lc, d_ex = example_layout(c.n_posts, c.post_thickness_in, c.rod_gap_in, c.outboard_posts, b)
+            t.step("X_t", "Wall end to rod centre", "X_t", r"X_t = n_{out} t + g/2",
+                   f"{min(c.n_posts, c.outboard_posts)}({c.post_thickness_in}) + {c.rod_gap_in}/2", x_t, "in",
+                   cite_ex, "assumption",
+                   note=f"{c.outboard_posts} posts outboard of the rod, the rest inboard after a {c.rod_gap_in} in. gap")
+            t.step("X_c", "Wall end to post centroid", "X_c", r"X_c = \sum x_k / n", f"{c.n_posts} posts", x_c, "in",
+                   cite_ex, "assumption")
+            Lc = t.step("L_c", "Chord length", "L_c", r"L_c = (n t + g) / 12",
+                        f"({c.n_posts}({c.post_thickness_in}) + {c.rod_gap_in}) / 12", Lc, "ft", cite_ex, "assumption")
+            d = t.step("d", "Chord lever arm (layout rule)", "d", r"d = b - (X_t + X_c) / 12",
+                       f"{fmt(b, 2)} − ({x_t:.3f} + {x_c:.3f}) / 12", d_ex, "ft", cite_ex, "assumption")
+        elif c.d_arm_ft is not None:
             d = t.step("d", "Chord lever arm (given)", "d", "d = given", f"d = {fmt(s.chord.d_arm_ft, 2)} ft",
                        s.chord.d_arm_ft, "ft", "input; example Fig. 3.6", "assumption",
                        note="Rod centre to compression-post centroid, as used in example Table 3.6")
@@ -78,5 +107,7 @@ def stack_forces(inp: DesignInputs) -> list[StoryForces]:
             d = t.step("d", "Chord lever arm, default (D2)", "d", r"d = b - d_{post}/12",
                        f"{fmt(b, 2)} − {fmt(inp.d_post_in, 2)}/12", b - inp.d_post_in / 12, "ft",
                        "spec-io D2", "assumption")
-        out.append(StoryForces(i, s.h_ft, V, M, wD, wL, wLr, d, tuple(t.steps)))
+        if c.layout != "example":
+            Lc = c.chord_length_ft
+        out.append(StoryForces(i, s.h_ft, V, M, wD, wL, wLr, d, Lc, tuple(t.steps)))
     return out

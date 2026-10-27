@@ -1,0 +1,36 @@
+{
+  "name": "WoodWorks example components",
+  "assemblies": [
+    "EX-OSB-15/32-10dc-6",
+    "EX-OSB-15/32-10dc-4",
+    "EX-OSB-15/32-10dc-2"
+  ],
+  "sides": [
+    1,
+    2
+  ],
+  "panel_types": [
+    "OSB"
+  ],
+  "lumber": [
+    [
+      "Douglas Fir-Larch",
+      "No.1",
+      "2\"-4\" thick, 2\" & wider"
+    ]
+  ],
+  "post_sizes": [
+    "2x4"
+  ],
+  "min_posts": 2,
+  "max_posts": 16,
+  "rods": [
+    "EX-F1554-36-5/8",
+    "EX-F1554-36-3/4",
+    "EX-F1554-36-1",
+    "EX-F1554-36-1-1/8"
+  ],
+  "holddowns": [],
+  "notes": "Use with the 'WoodWorks example components' data source.",
+  "schema_version": 1
+}

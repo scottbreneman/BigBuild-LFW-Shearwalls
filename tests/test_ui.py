@@ -74,3 +74,46 @@ def test_app_project_library_is_incomplete_not_pass():
     assert not at.exception, at.exception
     assert not any("All checks pass" in s.value for s in at.success)
     assert any("Incomplete" in w.value for w in at.warning)
+
+
+# --- preferred materials and auto-size -----------------------------------------------------------
+
+
+def test_project_json_v2_carries_preferences_and_v1_still_loads():
+    import json
+
+    from design.preferences import MaterialPreferences
+    from ui.io import preferences_from_project
+
+    inp = example_inputs()
+    prefs = MaterialPreferences(name="Office", rods=("R1",))
+    text = inputs_to_json(inp, prefs)
+    assert inputs_from_json(text) == inp and preferences_from_project(text) == prefs
+    v1 = json.loads(inputs_to_json(inp))
+    v1["schema_version"] = 1
+    assert inputs_from_json(json.dumps(v1)) == inp and preferences_from_project(json.dumps(v1)) is None
+
+
+def test_shipped_presets_load():
+    from design.preferences import MaterialPreferences
+
+    files = sorted((Path(APP).parents[2] / "presets").glob("*.json"))
+    assert files
+    for f in files:
+        assert MaterialPreferences.from_json(f.read_text(encoding="utf-8")).name
+
+
+def test_app_materials_tab_and_autosize_apply():
+    at = _app().run()
+    assert not at.exception, at.exception
+    assert any("Down-select the component library" in c.value for c in at.caption)
+    assert at.toggle(key="show_all").value is False
+    at.button(key="autosize_run").click().run()
+    assert not at.exception, at.exception
+    apply = at.button(key="autosize_apply")
+    assert not apply.disabled
+    apply.click().run()
+    assert not at.exception, at.exception
+    assert "autosize" not in at.session_state
+    loads, chords, ties = at.session_state["base_frames"]
+    assert set(chords["layout"]) == {"example"}  # posts now follow the layout rule

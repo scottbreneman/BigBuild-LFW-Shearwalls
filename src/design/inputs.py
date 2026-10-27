@@ -22,8 +22,14 @@ class ChordSpec:
     species_group: str = "Douglas Fir-Larch"  # keys into lumber_design_values.csv
     grade: str = "No.1"
     size_class: str = '2"-4" thick, 2" & wider'
-    chord_length_ft: float = 0.0  # total chord length incl. the rod gap; gravity tributary to the chord
+    chord_length_ft: float | None = 0.0  # total chord length incl. the rod gap; gravity tributary to the chord
     d_arm_ft: float | None = None  # rod centre to post centroid; default per D2 from wall d_post_in
+    # layout="example": chord length and d follow from the post count (example Figs. 3.7-3.8):
+    # `outboard_posts` beyond the rod, the rest inboard after a `rod_gap_in` gap.
+    layout: Literal["given", "example"] = "given"
+    post_thickness_in: float = 1.5  # post dimension along the wall
+    outboard_posts: int = 3
+    rod_gap_in: float = 6.0
     d_out_of_plane_in: float | None = None  # post dimension across the wall; default = dressed width
     top_plates_in: float = 3.0  # subtracted from story height for the post's unbraced length
     bottom_plate_in: float = 1.5
@@ -135,12 +141,19 @@ def validate(inp: DesignInputs) -> list[InputError]:
             need(getattr(s, name) >= 0, f"{p}.{name}", "must be >= 0")
         c = s.chord
         need(c.n_posts >= 1, f"{p}.chord.n_posts", "at least one post")
-        need(c.chord_length_ft > 0, f"{p}.chord.chord_length_ft", "must be positive")
-        if c.d_arm_ft is not None:
-            need(0 < c.d_arm_ft < inp.b_ft, f"{p}.chord.d_arm_ft", "must be between 0 and the wall length")
+        need(c.layout in ("given", "example"), f"{p}.chord.layout", "'given' or 'example'")
+        if c.layout == "example":
+            need(c.post_thickness_in > 0 and c.rod_gap_in >= 0 and c.outboard_posts >= 0, f"{p}.chord",
+                 "layout constants must be positive")
+            need(c.n_posts * c.post_thickness_in + c.rod_gap_in < 12 * inp.b_ft, f"{p}.chord", "chord exceeds the wall")
         else:
-            need(inp.d_post_in is not None and inp.d_post_in > 0, "d_post_in",
-                 f"needed for the default lever arm of story {i} (or give chord.d_arm_ft)")
+            need(c.chord_length_ft is not None and c.chord_length_ft > 0, f"{p}.chord.chord_length_ft",
+                 "must be positive")
+            if c.d_arm_ft is not None:
+                need(0 < c.d_arm_ft < inp.b_ft, f"{p}.chord.d_arm_ft", "must be between 0 and the wall length")
+            else:
+                need(inp.d_post_in is not None and inp.d_post_in > 0, "d_post_in",
+                     f"needed for the default lever arm of story {i} (or give chord.d_arm_ft)")
         need(s.h_ft * 12 > c.top_plates_in + c.bottom_plate_in, f"{p}.chord", "plates exceed story height")
         t = s.tiedown
         if isinstance(t, RodSystem):

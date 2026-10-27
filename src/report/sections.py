@@ -122,8 +122,10 @@ def _inputs(result: DesignResult) -> Section:
     walls = Table(
         ("Story", "Wall assembly", "Sides", "Panel", "End posts", "Chord length (ft)", "Lever arm d (ft)",
          "Tie-down"),
-        tuple((str(i), s.assembly_id, str(s.sides), s.panel_type, _posts(s), inum(s.chord.chord_length_ft),
-               inum(s.chord.d_arm_ft) if s.chord.d_arm_ft is not None else "default (D2)", _tiedown(s))
+        tuple((str(i), s.assembly_id, str(s.sides), s.panel_type, _posts(s),
+               "layout rule" if s.chord.layout == "example" else inum(s.chord.chord_length_ft),
+               "layout rule" if s.chord.layout == "example"
+               else inum(s.chord.d_arm_ft) if s.chord.d_arm_ft is not None else "default (D2)", _tiedown(s))
               for i, s in ((i, inp.stories[i - 1]) for i in order)),
         caption="Wall assembly, end posts and tie-down by story.",
         align_right=(5, 6),

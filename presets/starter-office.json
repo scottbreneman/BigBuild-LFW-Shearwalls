@@ -1,0 +1,45 @@
+{
+  "name": "Starter office preset (edit for your office)",
+  "assemblies": [
+    "WSP-S1-15/32-10dc-6",
+    "WSP-S1-15/32-10dc-4",
+    "WSP-S1-15/32-10dc-3",
+    "WSP-S1-15/32-10dc-2"
+  ],
+  "sides": [
+    1,
+    2
+  ],
+  "panel_types": [
+    "OSB"
+  ],
+  "lumber": [
+    [
+      "Douglas Fir-Larch",
+      "No.2",
+      "2\"-4\" thick, 2\" & wider"
+    ],
+    [
+      "Douglas Fir-Larch",
+      "No.1",
+      "2\"-4\" thick, 2\" & wider"
+    ]
+  ],
+  "post_sizes": [
+    "2x4",
+    "2x6"
+  ],
+  "min_posts": 2,
+  "max_posts": 16,
+  "rods": [
+    "F1554-36-5/8",
+    "F1554-36-3/4",
+    "F1554-36-7/8",
+    "F1554-36-1",
+    "F1554-36-1-1/8",
+    "F1554-36-1-1/4"
+  ],
+  "holddowns": [],
+  "notes": "A starting point, not a recommendation: 15/32 Structural I with 10d common nails, DF-L No.2/No.1 2x4 and 2x6 posts, ASTM F1554 Gr. 36 rods. Use with the 'Project component library' data source.",
+  "schema_version": 1
+}

@@ -40,6 +40,8 @@ Everything marked `memory` below was written from memory by Claude and is **not 
 | Dead load on the wall at level i | w_D,i | plf | Uniform along the wall, excluding wall self-weight |
 | Live and roof live load at level i | w_L,i, w_Lr,i | plf | For chord compression combinations |
 | Chord posts | n, size, species, grade | | Compression posts at each wall end; chord length L_c (ft) and lever arm d (ft) |
+| Chord geometry | layout | given / example | given: L_c and d entered. example: from the post count by the layout rule A16 (post thickness along the wall, 3 posts outboard, 6 in. rod gap) |
+| Preferred materials | | preset JSON | Down-selection used by the UI dropdowns and auto-size (preferred assemblies + sides + panel type, lumber + post sizes + post-count range, rods, hold-downs). Saved with the project |
 | Tie-down | | | Generic hold-down (model or T_allow, Δ_a) or continuous rod (rod id, bearing plate W × L × t, F_y, slack, take-up elongation) |
 | Wall self-weight | w_wall,i | plf | Optional |
 | Nailing selection | | table row id | One row of the capacity table: panel grade, thickness, nail, edge spacing |
@@ -120,6 +122,8 @@ Subscript i = story. Heights H_i are elevations of level i above the base of sto
 | A12 | Post capacity P_allow = min(F'_c, F'_c⊥) n A_post; F'_c = F_c C_D C_M C_t C_F C_i C_P, C_D = 1.6, l_e = h − plates, out-of-plane axis | NDS-2024 §3.6, §3.7.1 Eq. 3.7-1, §3.10; example §3.3.5, Table 3.9 | memory |
 | A13 | Bearing plate: ΔT_i ≤ F_c⊥ C_b (W L − π (d_rod + 3/16)² / 4), C_b = (l_b + 0.375) / l_b | NDS-2024 §3.10.4; example §3.3.6, Table 3.12 | memory |
 | A14 | Plate bending: f W (L/2)² / 2 ≤ F_y (W − d_rod − 1/16) t² / 4 / 1.67 | AISC 360-22 Eq. F11-1; example §3.3.6 | memory |
+| A16 | Layout rule: X_t = n_out t + g/2; X_c = centroid of n posts (n_out outboard, the rest inboard after the gap g); L_c = (n t + g)/12; d = b − (X_t + X_c)/12, defaults n_out = 3, g = 6 in. | statics; example Figs. 3.7–3.8, Tables 3.6 and 3.8 (reproduced); SEB post types N1–N5 | assumption |
+| A17 | Auto-size: for each story, the lightest preferred option (capacity ascending) that passes, in order: sheathing shear (assembly × sides), chord compression (lumber × post size × count with A16), tension (rod or hold-down). Drift is reported, not driven. Proposed, then applied by the engineer | owner decision 2026-10-27 | assumption |
 | A15 | Differential tension per floor ΔT_i = max(0, T_i − T_i+1) | statics; example Table 3.10 | statics |
 
 The default lever arm for D2 is d_arm = b − d_post / 12 (ft), post-center to post-center.

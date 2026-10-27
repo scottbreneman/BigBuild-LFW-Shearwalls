@@ -14,8 +14,9 @@ import pandas as pd
 from design.inputs import ChordSpec, DesignInputs, GenericHoldDown, RodSystem, StoryInput
 
 LOAD_COLS = ["h_ft", "F_lb", "w_D_plf", "w_wall_plf", "w_L_plf", "w_Lr_plf", "assembly_id", "sides", "panel_type"]
-CHORD_COLS = ["n_posts", "post_nominal", "species_group", "grade", "size_class", "chord_length_ft",
-              "d_arm_ft", "d_out_of_plane_in", "top_plates_in", "bottom_plate_in"]
+CHORD_COLS = ["n_posts", "post_nominal", "species_group", "grade", "size_class", "layout", "post_thickness_in",
+              "chord_length_ft", "d_arm_ft", "d_out_of_plane_in", "top_plates_in", "bottom_plate_in"]
+LAYOUTS = ["given", "example"]  # chord length and d entered, or from the example post-layout rule
 TIE_COLS = ["kind", "system_id", "plate_width_in", "plate_length_in", "plate_thickness_in", "plate_Fy_psi",
             "slack_in", "takeup_elongation_in", "rod_length_ft", "model", "T_allow_lb", "delta_a_in"]
 ROD, HOLDDOWN = "Rod system", "Hold-down"
@@ -104,11 +105,16 @@ def stories_from_frames(loads: pd.DataFrame, chords: pd.DataFrame, ties: pd.Data
     stories = []
     for k in range(len(loads)):
         l, c, t = loads.iloc[k], chords.iloc[k], ties.iloc[k]
+        layout = str(_none(c.get("layout")) or "given")
+        rule = layout == "example"
         chord = ChordSpec(
             n_posts=int(_f(c["n_posts"])), post_nominal=str(_none(c["post_nominal"]) or "2x4"),
             species_group=str(_none(c["species_group"]) or ""), grade=str(_none(c["grade"]) or ""),
-            size_class=str(_none(c["size_class"]) or ""), chord_length_ft=_f(c["chord_length_ft"]),
-            d_arm_ft=_pos_or_none(c["d_arm_ft"]), d_out_of_plane_in=_pos_or_none(c["d_out_of_plane_in"]),
+            size_class=str(_none(c["size_class"]) or ""), layout=layout,
+            post_thickness_in=_f(c.get("post_thickness_in"), 1.5),
+            chord_length_ft=None if rule else _f(c["chord_length_ft"]),
+            d_arm_ft=None if rule else _pos_or_none(c["d_arm_ft"]),
+            d_out_of_plane_in=_pos_or_none(c["d_out_of_plane_in"]),
             top_plates_in=_f(c["top_plates_in"], 3.0), bottom_plate_in=_f(c["bottom_plate_in"], 1.5))
         if t["kind"] == ROD:
             tiedown = RodSystem(

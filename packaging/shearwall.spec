@@ -12,6 +12,7 @@ datas = [
     (R("src", "analysis"), "src/analysis"),
     (R("tests", "woodworks_example.py"), "tests"),
     (R("tests", "fixtures", "woodworks_components"), "tests/fixtures/woodworks_components"),
+    (R("presets"), "presets"),
 ]
 binaries, hiddenimports = [], []
 for pkg in ("streamlit",):
