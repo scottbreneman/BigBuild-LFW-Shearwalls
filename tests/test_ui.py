@@ -6,6 +6,7 @@ from woodworks_example import inputs as seismic_example
 from woodworks_example import library as example_library
 
 from design.engine import run_design
+from report import build_markdown, build_report
 from design.result import OverallStatus
 from ui import forms
 from ui.example import example_cases
@@ -259,3 +260,37 @@ def test_app_new_engine_options_do_not_crash():
     assert not at.exception, at.exception
     at.checkbox(key="g_restraint_each_level").set_value(False).run()
     assert not at.exception, at.exception
+
+
+# ---------------------------------------------------------------- teammate's report tests (kept from main)
+def example_inputs():
+    return seismic_example()
+
+
+def test_report_tab_builds_a_report_from_the_example_result():
+    """What the Report tab's buttons hand to st.download_button."""
+    res = run_design(example_inputs(), example_library())
+    html, md = build_report(res), build_markdown(res)
+    assert html.startswith("<!DOCTYPE html>") and html.rstrip().endswith("</html>")
+    assert isinstance(html, str) and isinstance(md, str)  # download_button takes str directly
+    for text in (html, md):
+        assert "Prototype output" in text
+        assert "S4.shear" in text
+
+
+def test_report_tab_carries_the_git_commit_the_app_stamps():
+    import dataclasses
+
+    from ui.runtime import git_commit
+
+    res = dataclasses.replace(run_design(example_inputs(), example_library()), git_commit=git_commit() or "abc1234")
+    assert res.git_commit in build_report(res)
+
+
+def test_report_builds_even_when_inputs_are_invalid():
+    """The tab guards on INVALID_INPUT, but the report must not raise if that guard ever moves."""
+    import dataclasses
+
+    res = run_design(dataclasses.replace(example_inputs(), b_ft=-1.0), example_library())
+    assert res.status is OverallStatus.INVALID_INPUT
+    assert "Fix these inputs before the engine will run checks" in build_report(res)
