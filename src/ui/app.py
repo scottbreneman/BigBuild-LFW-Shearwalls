@@ -249,6 +249,26 @@ with tab_design:
                 with b2:
                     wnum(loads, "w_wall_plf", "Wall weight (plf)", sel, min_value=0.0, format="%.1f")
                     wnum(loads, "w_Lr_plf", "Roof live w_Lr (plf)", sel, min_value=0.0, format="%.1f")
+            with st.expander("Tributary distribution (optional, D9)"):
+                st.caption("Set L > 0 to compute this story's F from the total story force and the wall line's "
+                           "tributary width; the typed seismic and wind F above are then both ignored (enter V_x for "
+                           "each load case you want). Flexible diaphragm, share by wall "
+                           "length, uniform load along L (decision D9, shown as assumptions).")
+                t1, t2 = st.columns(2)
+                with t1:
+                    wnum(loads, "trib_V_seismic_lb", "Seismic story force V_x (lb)", sel, min_value=0.0, step=500.0,
+                         format="%.0f")
+                    wnum(loads, "trib_L_ft", "Building dimension L (ft); 0 = off", sel, min_value=0.0, step=1.0,
+                         format="%.2f", help="Perpendicular to the load; V_x is spread uniformly over L.")
+                    wnum(loads, "trib_span_left_ft", "Span to the line on one side (ft)", sel, min_value=0.0, step=1.0,
+                         format="%.2f", help="0 at a building edge.")
+                with t2:
+                    wnum(loads, "trib_V_wind_lb", "Wind story force V_x (lb)", sel, min_value=0.0, step=500.0,
+                         format="%.0f")
+                    wnum(loads, "trib_line_length_ft", "Wall length on this line Σb (ft); 0 = b", sel, min_value=0.0,
+                         step=0.5, format="%.2f")
+                    wnum(loads, "trib_span_right_ft", "Span to the line on the other side (ft)", sel, min_value=0.0,
+                         step=1.0, format="%.2f", help="0 at a building edge.")
             with st.expander("Nailing and sheathing", expanded=True):
                 wsel(loads, "assembly_id", "Nailing / assembly", sel,
                      opts_of([x.assembly_id for x in lib.shear_wall_assemblies] + list(loads["assembly_id"])))
@@ -420,7 +440,9 @@ with tab_design:
             notes = {}
             for i in range(1, n + 1):
                 lines = []
-                fe, fw = float(fv(loads.at[i, "F_seismic_lb"])), float(fv(loads.at[i, "F_wind_lb"]))
+                # Forces the engine used (computed from tributary inputs where given), not the typed ones.
+                fe, fw = (cs.results[c].inputs.stories[i - 1].F_lb if c in cs.results else 0.0
+                          for c in ("seismic", "wind"))
                 if fe > 0:
                     lines.append(f"E = {fe:,.0f} lb")
                 if fw > 0:

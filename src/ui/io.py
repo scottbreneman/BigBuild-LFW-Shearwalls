@@ -5,7 +5,7 @@ from __future__ import annotations
 import dataclasses
 import json
 
-from design.inputs import ChordSpec, DesignInputs, GenericHoldDown, RodSystem, StoryInput
+from design.inputs import ChordSpec, DesignInputs, GenericHoldDown, RodSystem, StoryInput, TributarySpec
 
 SCHEMA_VERSION = 1      # one DesignInputs
 CASES_VERSION = 2       # {'cases': {'seismic': ..., 'wind': ...}}
@@ -34,7 +34,9 @@ def inputs_from_dict(d: dict) -> DesignInputs:
         td = dict(s.pop("tiedown"))
         kind = td.pop("type", "rod" if "system_id" in td else "holddown")
         tiedown = RodSystem(**td) if kind == "rod" else GenericHoldDown(**td)
-        stories.append(StoryInput(chord=chord, tiedown=tiedown, **s))
+        tr = s.pop("tributary", None)
+        tributary = TributarySpec(**tr) if tr else None
+        stories.append(StoryInput(chord=chord, tiedown=tiedown, tributary=tributary, **s))
     top = {k: v for k, v in d.items() if k not in ("stories", "schema_version")}
     return DesignInputs(stories=tuple(stories), **top)
 

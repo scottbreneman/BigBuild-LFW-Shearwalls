@@ -6,10 +6,10 @@ Every calculation step and component row carries a source status (`statics`, `ve
 
 ## Progress
 
-- Calculation steps: `[........................] 0/55` verified (17 more are plain statics and need no source check)
+- Calculation steps: `[........................] 0/58` verified (18 more are plain statics and need no source check)
 - Component rows: `[###############.........] 89/142` verified
 
-Priorities come from running the WoodWorks example against the example library (seismic pass, wind fail); 34 of 55 steps were matched to a run. The rest keep the citation written at the call site.
+Priorities come from running the WoodWorks example against the example library (seismic pass, wind fail); 34 of 58 steps were matched to a run. The rest keep the citation written at the call site.
 
 ## Calculation steps
 
@@ -19,76 +19,79 @@ Start at the top: steps marked **governs** set a reported demand/capacity ratio,
 
 | | Status | Where | Step | Citation |
 | --- | --- | --- | --- | --- |
-| **governs** | memory | `src/design/checks/compression.py:66` | Adjusted E'_min | NDS-2024 Table 4.3.1 |
-| **governs** | memory | `src/design/checks/compression.py:69` | Critical buckling design value | NDS-2024 §3.7.1 |
-| **governs** | memory | `src/design/checks/compression.py:71` | F_c* (all factors except C_P) | NDS-2024 Table 4.3.1 |
-| **governs** | memory | `src/design/checks/compression.py:77` | Column stability factor | NDS-2024 Eq. 3.7-1; NDS-2024 §3.7.1, sawn lumber; WoodWorks 5-story example §3.3.5 |
-| **governs** | memory | `src/design/checks/compression.py:81` | Adjusted compression parallel | NDS-2024 Table 4.3.1 |
-| **governs** | memory | `src/design/checks/compression.py:83` | Adjusted compression perpendicular | NDS-2024 Table 4.3.1 |
-| **governs** | memory | `src/design/checks/compression.py:89` | Allowable chord compression | NDS-2024 §3.6, §3.10; WoodWorks 5-story example Table 3.9 |
-|  | memory | `src/design/checks/tiedown.py:82` | Bearing area factor | NDS-2024 §3.10.4; WoodWorks 5-story example §3.3.6 |
-|  | memory | `src/design/checks/tiedown.py:85` | Bearing area factor | NDS-2024 §3.10.4; WoodWorks 5-story example §3.3.6 |
-|  | memory | `src/design/checks/tiedown.py:86` | Adjusted bearing stress | NDS-2024 Table 4.3.1 |
+| **governs** | memory | `src\design\checks\compression.py:66` | Adjusted E'_min | NDS-2024 Table 4.3.1 |
+| **governs** | memory | `src\design\checks\compression.py:69` | Critical buckling design value | NDS-2024 §3.7.1 |
+| **governs** | memory | `src\design\checks\compression.py:71` | F_c* (all factors except C_P) | NDS-2024 Table 4.3.1 |
+| **governs** | memory | `src\design\checks\compression.py:77` | Column stability factor | NDS-2024 Eq. 3.7-1; NDS-2024 §3.7.1, sawn lumber; WoodWorks 5-story example §3.3.5 |
+| **governs** | memory | `src\design\checks\compression.py:81` | Adjusted compression parallel | NDS-2024 Table 4.3.1 |
+| **governs** | memory | `src\design\checks\compression.py:83` | Adjusted compression perpendicular | NDS-2024 Table 4.3.1 |
+| **governs** | memory | `src\design\checks\compression.py:89` | Allowable chord compression | NDS-2024 §3.6, §3.10; WoodWorks 5-story example Table 3.9 |
+|  | memory | `src\design\checks\tiedown.py:82` | Bearing area factor | NDS-2024 §3.10.4; WoodWorks 5-story example §3.3.6 |
+|  | memory | `src\design\checks\tiedown.py:85` | Bearing area factor | NDS-2024 §3.10.4; WoodWorks 5-story example §3.3.6 |
+|  | memory | `src\design\checks\tiedown.py:86` | Adjusted bearing stress | NDS-2024 Table 4.3.1 |
 
 ### SDPWS — 5 steps, 4 governing
 
 | | Status | Where | Step | Citation |
 | --- | --- | --- | --- | --- |
-| **governs** | memory | `src/design/checks/drift.py:135` | Shear and nail-slip term | SDPWS-2021 Eq. 4.3-1; WoodWorks 5-story example §3.4.2, Table 3.18 |
-| **governs** | memory | `src/design/checks/drift.py:205` | Bending term | SDPWS-2021 Eq. 4.3-1; WoodWorks 5-story example §3.4.2, Table 3.18 |
-| **governs** | memory | `src/design/checks/drift.py:207` | Anchorage rotation term | SDPWS-2021 Eq. 4.3-1; WoodWorks 5-story example §3.4.2, Table 3.18 |
-| **governs** | memory | `src/design/checks/drift.py:209` | Shear wall deflection | SDPWS-2021 Eq. 4.3-1; WoodWorks 5-story example §3.4.2, Table 3.18 |
-|  | memory | `src/design/checks/shear.py:59` | 3x framing at abutting panel edges | SDPWS-2021 §4.3.7.1 item 5; WoodWorks 5-story example §3.3.4 |
+| **governs** | memory | `src\design\checks\drift.py:135` | Shear and nail-slip term | SDPWS-2021 Eq. 4.3-1; WoodWorks 5-story example §3.4.2, Table 3.18 |
+| **governs** | memory | `src\design\checks\drift.py:205` | Bending term | SDPWS-2021 Eq. 4.3-1; WoodWorks 5-story example §3.4.2, Table 3.18 |
+| **governs** | memory | `src\design\checks\drift.py:207` | Anchorage rotation term | SDPWS-2021 Eq. 4.3-1; WoodWorks 5-story example §3.4.2, Table 3.18 |
+| **governs** | memory | `src\design\checks\drift.py:209` | Shear wall deflection | SDPWS-2021 Eq. 4.3-1; WoodWorks 5-story example §3.4.2, Table 3.18 |
+|  | memory | `src\design\checks\shear.py:59` | 3x framing at abutting panel edges | SDPWS-2021 §4.3.7.1 item 5; WoodWorks 5-story example §3.3.4 |
 
 ### ASCE — 5 steps, 1 governing
 
 | | Status | Where | Step | Citation |
 | --- | --- | --- | --- | --- |
-| **governs** | memory | `src/design/combos.py:42` | ASD seismic factor on E_h | ASCE 7-22 §2.4.5, §12.4.2.2 (E_v = 0.2 S_DS D); WoodWorks 5-story example §3.3.1 |
-|  | memory | `src/design/checks/drift.py:258` | Design story drift | ASCE 7-22 Eq. 12.8-16; WoodWorks 5-story example §3.4.5 |
-|  | memory | `src/design/combos.py:67` | ASD wind factor on W | ASCE 7-22 §2.4.1; WoodWorks 5-story example §4.5 |
-|  | memory | `src/design/combos.py:68` | Wind compression combinations | ASCE 7-22 §2.4.1; WoodWorks 5-story example §4.5 |
-|  | memory | `src/design/combos.py:70` | Wind tension combination | ASCE 7-22 §2.4.1; WoodWorks 5-story example §4.5 |
+| **governs** | memory | `src\design\combos.py:42` | ASD seismic factor on E_h | ASCE 7-22 §2.4.5, §12.4.2.2 (E_v = 0.2 S_DS D); WoodWorks 5-story example §3.3.1 |
+|  | memory | `src\design\checks\drift.py:258` | Design story drift | ASCE 7-22 Eq. 12.8-16; WoodWorks 5-story example §3.4.5 |
+|  | memory | `src\design\combos.py:67` | ASD wind factor on W | ASCE 7-22 §2.4.1; WoodWorks 5-story example §4.5 |
+|  | memory | `src\design\combos.py:68` | Wind compression combinations | ASCE 7-22 §2.4.1; WoodWorks 5-story example §4.5 |
+|  | memory | `src\design\combos.py:70` | Wind tension combination | ASCE 7-22 §2.4.1; WoodWorks 5-story example §4.5 |
 
-### no code reference — 35 steps, 10 governing
+### no code reference — 38 steps, 10 governing
 
 | | Status | Where | Step | Citation |
 | --- | --- | --- | --- | --- |
-| **governs** | assumption | `src/design/checks/compression.py:49` | Post depth across wall | WoodWorks, Five-Story Light-Frame Wood Structure Over Podium, 2nd ed. (Nov 2025), §3.3.5 (d1 and d2), p. 34 |
-| **governs** | assumption | `src/design/checks/compression.py:54` | Unbraced length | WoodWorks 5-story example §3.3.5 |
-| **governs** | assumption | `src/design/checks/drift.py:76` | Wood-to-wood bearing deformation factor | WoodWorks 5-story example §3.4.3 |
-| **governs** | assumption | `src/design/checks/drift.py:93` | Bottom story bears on podium/foundation | WoodWorks 5-story example §3.4.3 |
-| **governs** | assumption | `src/design/checks/drift.py:106` | Take-up device slack | input; WoodWorks 5-story example Table 3.17A |
-| **governs** | assumption | `src/design/checks/drift.py:108` | Take-up device elongation | input; manufacturer data |
-| **governs** | memory | `src/design/checks/drift.py:119` | Total vertical chord deformation at wall ends | WoodWorks 5-story example §3.4.3, Fig. 3.9 |
-| **governs** | assumption | `src/design/checks/drift.py:253` | Allowable wind story drift (user limit) | user input; spec-io C4/D6 (ASCE 7-22 App. C commentary, non-mandatory) |
-| **governs** | assumption | `src/design/chords.py:65` | Dead load tributary to chord | WoodWorks 5-story example §3.3.5, Table 3.8 |
-| **governs** | assumption | `src/design/chords.py:85` | Chord compression for drift (lateral only) | WoodWorks 5-story example §3.4.1, Table 3.13A |
-|  | memory | `src/analysis/stack.py:55` | Roof uplift overturning | WoodWorks 5-story example §4.5.2 |
-|  | assumption | `src/analysis/stack.py:74` | Chord lever arm (given) | input; example Fig. 3.6 |
-|  | assumption | `src/analysis/stack.py:78` | Chord lever arm, default (D2) | spec-io D2 |
-|  | memory | `src/design/checks/compression.py:94` | C | (built at run time) |
-|  | memory | `src/design/checks/drift.py:57` |  | (built at run time) |
-|  | assumption | `src/design/checks/drift.py:69` | Total vertical chord deformation (user input) | input; product data |
-|  | assumption | `src/design/checks/drift.py:111` | Shrinkage (compensated by take-up device) | (built at run time) |
-|  | assumption | `src/design/checks/drift.py:114` | Shrinkage (no take-up device) | (built at run time) |
-|  | memory | `src/design/checks/drift.py:160` | Panel shear term | (built at run time) |
-|  | memory | `src/design/checks/drift.py:163` | Nail slip term | (built at run time) |
-|  | memory | `src/design/checks/drift.py:165` | Shear and nail-slip terms (4-term) | (built at run time) |
-|  | assumption | `src/design/checks/drift.py:199` | Cumulative chord deformation (no restraint at each level) | (built at run time) |
-|  | assumption | `src/design/checks/drift.py:227` |  | statics; owner decision D6 (rigid-body geometry) |
-|  | assumption | `src/design/checks/drift.py:232` | Drift from rotation of stories below | statics; owner decision D6 |
-|  | assumption | `src/design/checks/tiedown.py:37` | Hold-down allowable tension (user input) | input; product evaluation report |
-|  | assumption | `src/design/checks/tiedown.py:60` | Hole in wood plate (given) | input; plate specification |
-|  | memory | `src/design/checks/tiedown.py:89` | Allowable bearing | WoodWorks 5-story example Table 3.12 |
-|  | memory | `src/design/checks/tiedown.py:105` | Plate bending moment (cantilever from rod) | WoodWorks 5-story example §3.3.6 |
-|  | memory | `src/design/chords.py:73` |  | (built at run time) |
-|  | memory | `src/design/combos.py:43` | Dead-load factor, ASD combo 8 | (built at run time) |
-|  | memory | `src/design/combos.py:45` | Dead-load factor, ASD combo 9 | (built at run time) |
-|  | memory | `src/design/combos.py:48` | Dead-load factor, ASD combo 10 | (built at run time) |
-|  | assumption | `src/design/combos.py:50` | Dead-load factor for drift tension | (built at run time) |
-|  | memory | `src/design/combos.py:55` | Drift-level factor on E_h | (built at run time) |
-|  | assumption | `src/design/combos.py:71` | Wind drift load level | spec-io D6 (owner decision); WoodWorks 5-story example §4.6 adopts no wind drift criterion |
+| **governs** | assumption | `src\design\checks\compression.py:49` | Post depth across wall | WoodWorks, Five-Story Light-Frame Wood Structure Over Podium, 2nd ed. (Nov 2025), §3.3.5 (d1 and d2), p. 34 |
+| **governs** | assumption | `src\design\checks\compression.py:54` | Unbraced length | WoodWorks 5-story example §3.3.5 |
+| **governs** | assumption | `src\design\checks\drift.py:76` | Wood-to-wood bearing deformation factor | WoodWorks 5-story example §3.4.3 |
+| **governs** | assumption | `src\design\checks\drift.py:93` | Bottom story bears on podium/foundation | WoodWorks 5-story example §3.4.3 |
+| **governs** | assumption | `src\design\checks\drift.py:106` | Take-up device slack | input; WoodWorks 5-story example Table 3.17A |
+| **governs** | assumption | `src\design\checks\drift.py:108` | Take-up device elongation | input; manufacturer data |
+| **governs** | memory | `src\design\checks\drift.py:119` | Total vertical chord deformation at wall ends | WoodWorks 5-story example §3.4.3, Fig. 3.9 |
+| **governs** | assumption | `src\design\checks\drift.py:253` | Allowable wind story drift (user limit) | user input; spec-io C4/D6 (ASCE 7-22 App. C commentary, non-mandatory) |
+| **governs** | assumption | `src\design\chords.py:65` | Dead load tributary to chord | WoodWorks 5-story example §3.3.5, Table 3.8 |
+| **governs** | assumption | `src\design\chords.py:85` | Chord compression for drift (lateral only) | WoodWorks 5-story example §3.4.1, Table 3.13A |
+|  | memory | `src\analysis\stack.py:55` | Roof uplift overturning | WoodWorks 5-story example §4.5.2 |
+|  | assumption | `src\analysis\stack.py:74` | Chord lever arm (given) | input; example Fig. 3.6 |
+|  | assumption | `src\analysis\stack.py:78` | Chord lever arm, default (D2) | spec-io D2 |
+|  | assumption | `src\analysis\tributary.py:38` | Story force per unit length of diaphragm (D9c) | spec-io D9 |
+|  | assumption | `src\analysis\tributary.py:41` | Tributary width of the wall line (D9a) | (built at run time) |
+|  | assumption | `src\analysis\tributary.py:49` | Story force on this wall (D9b) | spec-io D9 |
+|  | memory | `src\design\checks\compression.py:94` | C | (built at run time) |
+|  | memory | `src\design\checks\drift.py:57` |  | (built at run time) |
+|  | assumption | `src\design\checks\drift.py:69` | Total vertical chord deformation (user input) | input; product data |
+|  | assumption | `src\design\checks\drift.py:111` | Shrinkage (compensated by take-up device) | (built at run time) |
+|  | assumption | `src\design\checks\drift.py:114` | Shrinkage (no take-up device) | (built at run time) |
+|  | memory | `src\design\checks\drift.py:160` | Panel shear term | (built at run time) |
+|  | memory | `src\design\checks\drift.py:163` | Nail slip term | (built at run time) |
+|  | memory | `src\design\checks\drift.py:165` | Shear and nail-slip terms (4-term) | (built at run time) |
+|  | assumption | `src\design\checks\drift.py:199` | Cumulative chord deformation (no restraint at each level) | (built at run time) |
+|  | assumption | `src\design\checks\drift.py:227` |  | statics; owner decision D6 (rigid-body geometry) |
+|  | assumption | `src\design\checks\drift.py:232` | Drift from rotation of stories below | statics; owner decision D6 |
+|  | assumption | `src\design\checks\tiedown.py:37` | Hold-down allowable tension (user input) | input; product evaluation report |
+|  | assumption | `src\design\checks\tiedown.py:60` | Hole in wood plate (given) | input; plate specification |
+|  | memory | `src\design\checks\tiedown.py:89` | Allowable bearing | WoodWorks 5-story example Table 3.12 |
+|  | memory | `src\design\checks\tiedown.py:105` | Plate bending moment (cantilever from rod) | WoodWorks 5-story example §3.3.6 |
+|  | memory | `src\design\chords.py:73` |  | (built at run time) |
+|  | memory | `src\design\combos.py:43` | Dead-load factor, ASD combo 8 | (built at run time) |
+|  | memory | `src\design\combos.py:45` | Dead-load factor, ASD combo 9 | (built at run time) |
+|  | memory | `src\design\combos.py:48` | Dead-load factor, ASD combo 10 | (built at run time) |
+|  | assumption | `src\design\combos.py:50` | Dead-load factor for drift tension | (built at run time) |
+|  | memory | `src\design\combos.py:55` | Drift-level factor on E_h | (built at run time) |
+|  | assumption | `src\design\combos.py:71` | Wind drift load level | spec-io D6 (owner decision); WoodWorks 5-story example §4.6 adopts no wind drift criterion |
 
 ## Component library rows
 

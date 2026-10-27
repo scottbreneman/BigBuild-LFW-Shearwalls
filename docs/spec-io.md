@@ -37,6 +37,7 @@ Everything marked `memory` below was written from memory by Claude and is **not 
 | --- | --- | --- | --- |
 | Story height | h_i | ft | Floor-to-floor wall height |
 | Applied lateral force at level i | F_i | lb | **Strength level** (E_h or W). The engine applies 0.7E_h / 0.6W and the drift combinations (decision D8) |
+| Tributary distribution (optional) | V_x, L, s_left, s_right, Σb_line | lb, ft | When given, the engine computes F_i from them (§3 T1–T4, decision D9) instead of using the typed F_i |
 | Dead load on the wall at level i | w_D,i | plf | Uniform along the wall, excluding wall self-weight |
 | Live and roof live load at level i | w_L,i, w_Lr,i | plf | For chord compression combinations |
 | Chord posts | n, size, species, grade | | Compression posts at each wall end; chord length L_c (ft) and lever arm d (ft) |
@@ -102,6 +103,17 @@ The calc builder owns these types in `src/design/trace.py`; the engine entry poi
 
 Subscript i = story. Heights H_i are elevations of level i above the base of story 1. All forms below need an engineer's check against the cited source.
 
+### Tributary distribution (optional, decision D9)
+
+Runs before Stage A for each story that has tributary inputs; the result replaces F_i. Forces stay at strength level. Code: `src/analysis/tributary.py`, steps `S{i}.statics.trib.*`.
+
+| ID | Equation | Citation | Status |
+| --- | --- | --- | --- |
+| T1 | Story force per unit length w_x = V_x / L, with V_x the total story force and L the building dimension perpendicular to the load | spec-io D9c | assumption |
+| T2 | Tributary width of the wall line t = s_left / 2 + s_right / 2 (diaphragm spans to the adjacent wall lines; 0 at a building edge) | spec-io D9a; diaphragm flexibility per ASCE 7-22 §12.3.1 | assumption |
+| T3 | Wall line force F_line = w_x t | statics | statics |
+| T4 | Force on this wall F_i = F_line b / Σb_line (Σb_line defaults to b) | spec-io D9b | assumption |
+
 ### Stage A (one wall, one story) and Stage B (stack)
 
 | ID | Equation | Citation | Status |
@@ -148,6 +160,7 @@ Record each answer here with initials, then update the status of the affected ro
 - [ ] D5 Stack chord force method: from the overturning moment, or cumulative story uplift. Match the reference example §3.3.6.
 - [ ] D6 Drift: load level for v in C1 (ASD or strength) and the story-drift definition. Seismic follows the example (strength level, floor to floor). **Wind (owner, 2026-10-27): check against a user-provided drift limit; forces 1.0W and 0.6D + 1.0W.** **Rotation carried up (owner, 2026-10-27): optional, by rigid-body geometry (C7), not the SEB spreadsheet's d / H form.** 4-term deflection, no-take-up shrinkage and cumulative chord deformation are options (C1a, C5, C6); the default stays the example's 3-term floor-to-floor method.
 - [ ] D7 Tolerances for comparing results with the answer key.
+- [ ] D9 Tributary distribution of story forces (optional input, proposed by M Bennett, 2026-10-27): (a) diaphragm idealized as flexible, so wall lines take load by tributary width; whether a building qualifies is set by ASCE 7-22 §12.3.1 and is the engineer's call; (b) a line's force is shared among its walls by length, not stiffness; (c) the story force is spread uniformly along L, with no inherent or accidental torsion. All three print as `assumption` until the owner confirms.
 - [x] D8 Applied story forces are supplied at **strength level**; the engine applies 0.7E_h / 0.6W and the drift combinations (owner, 2026-10-27; matches example Tables 3.4 and 4.4).
 
 ## 5. Results

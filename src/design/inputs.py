@@ -59,6 +59,17 @@ Tiedown = Union[GenericHoldDown, RodSystem]
 
 
 @dataclass(frozen=True)
+class TributarySpec:
+    """Flexible-diaphragm tributary share of a story force (decision D9, analysis/tributary.py)."""
+
+    V_story_lb: float  # strength-level total story force in the load direction (E_h or W)
+    L_ft: float  # building dimension perpendicular to the load; V_story is spread uniformly over it (D9c)
+    span_left_ft: float  # diaphragm span to the next wall line on one side; 0 at a building edge
+    span_right_ft: float  # diaphragm span to the next wall line on the other side; 0 at a building edge
+    line_length_ft: float | None = None  # total wall length on this wall line; default b (this wall alone)
+
+
+@dataclass(frozen=True)
 class StoryInput:
     h_ft: float  # floor-to-floor height
     F_lb: float  # strength-level lateral force applied at the top of this story
@@ -71,6 +82,7 @@ class StoryInput:
     w_Lr_plf: float = 0.0  # roof live load delivered at the top of this story
     sides: int = 1  # sheathed sides, same assembly on each side
     panel_type: Literal["OSB", "Plywood"] = "OSB"  # selects G_a column
+    tributary: TributarySpec | None = None  # when given, the engine computes F_lb from it (D9)
 
 
 @dataclass(frozen=True)
@@ -133,6 +145,18 @@ def validate(inp: DesignInputs) -> list[InputError]:
         need(s.panel_type in ("OSB", "Plywood"), f"{p}.panel_type", "'OSB' or 'Plywood'")
         for name in ("w_D_plf", "w_wall_plf", "w_L_plf", "w_Lr_plf"):
             need(getattr(s, name) >= 0, f"{p}.{name}", "must be >= 0")
+        tr = s.tributary
+        if tr is not None:
+            q = f"{p}.tributary"
+            need(tr.V_story_lb >= 0, f"{q}.V_story_lb", "story force must be >= 0")
+            need(tr.L_ft > 0, f"{q}.L_ft", "building dimension must be positive")
+            need(tr.span_left_ft >= 0 and tr.span_right_ft >= 0, q, "spans must be >= 0")
+            width = (tr.span_left_ft + tr.span_right_ft) / 2
+            need(width > 0, q, "at least one span must be positive")
+            need(width <= tr.L_ft, q, "tributary width cannot exceed the building dimension L_ft")
+            if tr.line_length_ft is not None:
+                need(tr.line_length_ft >= inp.b_ft, f"{q}.line_length_ft",
+                     "wall line length must be at least this wall's length b")
         c = s.chord
         need(c.n_posts >= 1, f"{p}.chord.n_posts", "at least one post")
         need(c.chord_length_ft > 0, f"{p}.chord.chord_length_ft", "must be positive")

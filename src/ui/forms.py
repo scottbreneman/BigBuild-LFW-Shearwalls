@@ -11,9 +11,14 @@ from typing import Any
 
 import pandas as pd
 
-from design.inputs import ChordSpec, DesignInputs, GenericHoldDown, RodSystem, StoryInput
+from design.inputs import ChordSpec, DesignInputs, GenericHoldDown, RodSystem, StoryInput, TributarySpec
 
-LOAD_COLS = ["h_ft", "F_seismic_lb", "F_wind_lb", "w_D_plf", "w_wall_plf", "w_L_plf", "w_Lr_plf", "assembly_id", "sides", "panel_type"]
+# Tributary inputs (decision D9): on for a story when trib_L_ft > 0; the engine then computes F for both cases.
+TRIB_COLS = ["trib_V_seismic_lb", "trib_V_wind_lb", "trib_L_ft", "trib_span_left_ft", "trib_span_right_ft",
+             "trib_line_length_ft"]
+LOAD_COLS = ["h_ft", "F_seismic_lb", "F_wind_lb", "w_D_plf", "w_wall_plf", "w_L_plf", "w_Lr_plf", "assembly_id", "sides",
+             "panel_type", *TRIB_COLS]
+V_COL = {"seismic": "trib_V_seismic_lb", "wind": "trib_V_wind_lb"}
 CHORD_COLS = ["n_posts", "post_nominal", "species_group", "grade", "size_class", "chord_length_ft",
               "d_arm_ft", "d_out_of_plane_in", "top_plates_in", "bottom_plate_in"]
 TIE_COLS = ["kind", "system_id", "plate_width_in", "plate_length_in", "plate_thickness_in", "plate_Fy_psi",
@@ -95,9 +100,16 @@ def frames_from_cases(cases: dict[str, DesignInputs]) -> tuple[pd.DataFrame, pd.
     base = cases.get("seismic") or cases.get("wind")
     loads, chords, ties = [], [], []
     for k, s in enumerate(base.stories):
-        row = {c: getattr(s, c) for c in LOAD_COLS if c not in ("F_seismic_lb", "F_wind_lb")}
+        row = {c: getattr(s, c) for c in LOAD_COLS if c not in ("F_seismic_lb", "F_wind_lb", *TRIB_COLS)}
         row["F_seismic_lb"] = cases["seismic"].stories[k].F_lb if "seismic" in cases else 0.0
         row["F_wind_lb"] = cases["wind"].stories[k].F_lb if "wind" in cases else 0.0
+        tr = s.tributary
+        row.update(trib_L_ft=tr.L_ft if tr else 0.0, trib_span_left_ft=tr.span_left_ft if tr else 0.0,
+                   trib_span_right_ft=tr.span_right_ft if tr else 0.0,
+                   trib_line_length_ft=(tr.line_length_ft or 0.0) if tr else 0.0)
+        for lt, col in V_COL.items():
+            ct = cases[lt].stories[k].tributary if lt in cases else None
+            row[col] = ct.V_story_lb if ct else 0.0
         loads.append(row)
         chords.append({c: getattr(s.chord, c) for c in CHORD_COLS})
         t = s.tiedown
@@ -134,8 +146,17 @@ def resize_frames(frames, n: int):
     return tuple(out)
 
 
+def _tributary(l, v_col: str | None) -> TributarySpec | None:
+    """Tributary spec for one story row, or None when trib_L_ft is 0 or blank (F is then typed)."""
+    if not _pos_or_none(l.get("trib_L_ft")):
+        return None
+    return TributarySpec(V_story_lb=_f(l.get(v_col)) if v_col else 0.0, L_ft=_f(l["trib_L_ft"]),
+                         span_left_ft=_f(l.get("trib_span_left_ft")), span_right_ft=_f(l.get("trib_span_right_ft")),
+                         line_length_ft=_pos_or_none(l.get("trib_line_length_ft")))
+
+
 def stories_from_frames(loads: pd.DataFrame, chords: pd.DataFrame, ties: pd.DataFrame,
-                        force_col: str = "F_lb") -> tuple[StoryInput, ...]:
+                        force_col: str = "F_lb", v_col: str | None = None) -> tuple[StoryInput, ...]:
     stories = []
     for k in range(len(loads)):
         l, c, t = loads.iloc[k], chords.iloc[k], ties.iloc[k]
@@ -161,8 +182,16 @@ def stories_from_frames(loads: pd.DataFrame, chords: pd.DataFrame, ties: pd.Data
             h_ft=_f(l["h_ft"]), F_lb=_f(l[force_col]), assembly_id=str(_none(l["assembly_id"]) or ""), chord=chord,
             tiedown=tiedown, w_D_plf=_f(l["w_D_plf"]), w_wall_plf=_f(l["w_wall_plf"]), w_L_plf=_f(l["w_L_plf"]),
             w_Lr_plf=_f(l["w_Lr_plf"]), sides=int(_f(l["sides"], 1)),
-            panel_type=str(_none(l["panel_type"]) or "OSB")))
+            panel_type=str(_none(l["panel_type"]) or "OSB"), tributary=_tributary(l, v_col)))
     return tuple(stories)
+
+
+def case_force(loads: pd.DataFrame, story: int, load_type: str) -> float:
+    """The force that drives a load case at one story: tributary V_x when tributary is on, else the typed F."""
+    l = loads.loc[story]
+    if _pos_or_none(l.get("trib_L_ft")):
+        return _f(l.get(V_COL[load_type]))
+    return _f(l.get({"seismic": "F_seismic_lb", "wind": "F_wind_lb"}[load_type]))
 
 
 def build_inputs(g: dict[str, Any], loads, chords, ties, load_type: str | None = None) -> DesignInputs:
@@ -173,7 +202,8 @@ def build_inputs(g: dict[str, Any], loads, chords, ties, load_type: str | None =
     seismic = load_type == "seismic"
     denom = _pos_or_none(g.get("wind_drift_denominator"))
     return DesignInputs(
-        load_type=load_type, b_ft=_f(g["b_ft"]), stories=stories_from_frames(loads, chords, ties, force_col),
+        load_type=load_type, b_ft=_f(g["b_ft"]),
+        stories=stories_from_frames(loads, chords, ties, force_col, V_COL.get(load_type)),
         S_DS=_f(g["S_DS"]) if seismic else None, C_d=_pos_or_none(g["C_d"]) if seismic else None,
         I_e=_pos_or_none(g["I_e"]) if seismic else None, risk_category=g["risk_category"] if seismic else None,
         sdc=(g["sdc"] or None) if seismic else None, d_post_in=_pos_or_none(g["d_post_in"]),
@@ -188,8 +218,7 @@ def build_inputs(g: dict[str, Any], loads, chords, ties, load_type: str | None =
 def build_cases(g: dict[str, Any], loads, chords, ties) -> dict[str, DesignInputs]:
     """One DesignInputs per load type that has at least one force entered (seismic and wind forces in lb)."""
     cases = {}
-    for lt, col in (("seismic", "F_seismic_lb"), ("wind", "F_wind_lb")):
-        forces = pd.to_numeric(loads[col], errors="coerce").fillna(0.0)
-        if (forces > 0).any():
+    for lt in ("seismic", "wind"):
+        if any(case_force(loads, i, lt) > 0 for i in loads.index):
             cases[lt] = build_inputs(g, loads, chords, ties, load_type=lt)
     return cases

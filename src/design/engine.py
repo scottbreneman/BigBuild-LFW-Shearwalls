@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Callable
 
 from analysis.stack import stack_forces
+from analysis.tributary import resolve_tributary
 
 from .checks import Context
 from .checks.compression import check_compression
@@ -61,6 +62,7 @@ def run_design(inp: DesignInputs, lib: ComponentLibrary | None = None) -> Design
     if errors:
         return DesignResult(inputs=inp, load_type=inp.load_type, input_errors=tuple(errors),
                             status=OverallStatus.INVALID_INPUT)
+    inp, trib_steps = resolve_tributary(inp)  # F_lb from tributary width where given (D9)
     lib = lib or default_library()
     combos = combos_for(inp)
     forces = stack_forces(inp)
@@ -75,7 +77,7 @@ def run_design(inp: DesignInputs, lib: ComponentLibrary | None = None) -> Design
 
     all_checks = [c for s in stories for c in s.checks]
     gov, dcr, st = summarize(all_checks)
-    stack_steps = tuple(combos.steps) + tuple(s for f in forces for s in f.steps) + \
+    stack_steps = tuple(combos.steps) + trib_steps + tuple(s for f in forces for s in f.steps) + \
         tuple(s for c in chords for s in c.steps)
     seen, unverified = set(), []
     for step in [*stack_steps, *(s for c in all_checks for s in c.steps)]:

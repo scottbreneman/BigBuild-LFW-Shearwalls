@@ -224,14 +224,17 @@ def test_app_exposes_every_chord_field_the_engine_accepts():
 def test_app_exposes_every_design_input_field():
     """Every field of the engine's input dataclasses is reachable from the form (directly or via a settings widget)."""
     import dataclasses as dc
-    from design.inputs import ChordSpec, DesignInputs, GenericHoldDown, RodSystem, StoryInput
+    from design.inputs import ChordSpec, DesignInputs, GenericHoldDown, RodSystem, StoryInput, TributarySpec
     covered_top = {"load_type", "stories", "b_ft", "S_DS", "C_d", "I_e", "risk_category", "sdc", "d_post_in", "roof_uplift_plf",
                    "wind_drift_limit_ratio", "wood_bearing_factor", "carry_rotation", "project_name",
                    "deflection_method", "framing_moisture", "restraint_each_level"}
     assert {f.name for f in dc.fields(DesignInputs)} <= covered_top
     form = set(forms.LOAD_COLS) | set(forms.CHORD_COLS) | set(forms.TIE_COLS)
-    story_fields = {f.name for f in dc.fields(StoryInput)} - {"F_lb", "chord", "tiedown"}
+    story_fields = {f.name for f in dc.fields(StoryInput)} - {"F_lb", "chord", "tiedown", "tributary"}
     assert story_fields <= form
+    # Tributary fields are prefixed trib_; V_story_lb has one column per load case.
+    trib = {f"trib_{f.name}" for f in dc.fields(TributarySpec) if f.name != "V_story_lb"}
+    assert trib | {"trib_V_seismic_lb", "trib_V_wind_lb"} <= form
     assert {f.name for f in dc.fields(ChordSpec)} <= form
     assert {f.name for f in dc.fields(RodSystem)} <= form | {"system_id"}
     assert {f.name for f in dc.fields(GenericHoldDown)} <= form | {"model"}

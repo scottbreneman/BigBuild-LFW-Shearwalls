@@ -50,6 +50,7 @@ Grouped by book so each one is opened once.
 | [ ] | Drift forces: strength-level E_h, no 0.7 | — | §12.8.6.1 | `combos.py` → drift |
 | [ ] | Amplified deflection δ_x = C_d δ_xe / I_e | — | Eq. 12.8-16 | `checks/drift.py` |
 | [ ] | Allowable story drift, Risk Category I/II, light-frame walls | 0.020 h_sx | Table 12.12-1 | `factors.DRIFT_LIMIT_RC_I_II` |
+| [ ] | Diaphragm may be idealized as flexible for tributary distribution (decision D9a; applies only when tributary inputs are given) | — | §12.3.1 | `analysis/tributary.py` |
 
 ## AISC
 
