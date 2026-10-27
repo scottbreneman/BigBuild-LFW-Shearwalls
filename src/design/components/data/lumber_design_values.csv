@@ -1,0 +1,33 @@
+species_group,grade,size_class,Fb_psi,Ft_psi,Fv_psi,Fc_perp_psi,Fc_psi,E_psi,Emin_psi,specific_gravity,source,status,notes
+Douglas Fir-Larch,Select Structural,"2""-4"" thick, 2"" & wider",,,,,,,,,NDS 2024 Supplement Table 4A,pending,specific_gravity from NDS 2024 Table 12.3.3A
+Douglas Fir-Larch,No.1,"2""-4"" thick, 2"" & wider",,,,,,,,,NDS 2024 Supplement Table 4A,pending,specific_gravity from NDS 2024 Table 12.3.3A
+Douglas Fir-Larch,No.2,"2""-4"" thick, 2"" & wider",,,,,,,,,NDS 2024 Supplement Table 4A,pending,specific_gravity from NDS 2024 Table 12.3.3A
+Douglas Fir-Larch,Stud,"2""-4"" thick, 2"" & wider",,,,,,,,,NDS 2024 Supplement Table 4A,pending,specific_gravity from NDS 2024 Table 12.3.3A
+Spruce-Pine-Fir,Select Structural,"2""-4"" thick, 2"" & wider",,,,,,,,,NDS 2024 Supplement Table 4A,pending,specific_gravity from NDS 2024 Table 12.3.3A
+Spruce-Pine-Fir,No.1,"2""-4"" thick, 2"" & wider",,,,,,,,,NDS 2024 Supplement Table 4A,pending,specific_gravity from NDS 2024 Table 12.3.3A
+Spruce-Pine-Fir,No.2,"2""-4"" thick, 2"" & wider",,,,,,,,,NDS 2024 Supplement Table 4A,pending,specific_gravity from NDS 2024 Table 12.3.3A
+Spruce-Pine-Fir,Stud,"2""-4"" thick, 2"" & wider",,,,,,,,,NDS 2024 Supplement Table 4A,pending,specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,Select Structural,2x4,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,Select Structural,2x6,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,Select Structural,2x8,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,Select Structural,2x10,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,Select Structural,2x12,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,No.1,2x4,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,No.1,2x6,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,No.1,2x8,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,No.1,2x10,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,No.1,2x12,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,No.2,2x4,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,No.2,2x6,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,No.2,2x8,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,No.2,2x10,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,No.2,2x12,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,Stud,2x4,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,Stud,2x6,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,Stud,2x8,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,Stud,2x10,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,Stud,2x12,,,,,,,,,NDS 2024 Supplement Table 4B,pending,Southern Pine values are width-specific; use the row for the actual size; specific_gravity from NDS 2024 Table 12.3.3A
+Douglas Fir-Larch,No.1,"5""x5"" & larger, Posts and Timbers",,,,,,,,,NDS 2024 Supplement Table 4D,pending,For 6x6 and larger posts; specific_gravity from NDS 2024 Table 12.3.3A
+Douglas Fir-Larch,No.2,"5""x5"" & larger, Posts and Timbers",,,,,,,,,NDS 2024 Supplement Table 4D,pending,For 6x6 and larger posts; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,No.1,"5""x5"" & larger, Posts and Timbers",,,,,,,,,NDS 2024 Supplement Table 4D,pending,For 6x6 and larger posts; specific_gravity from NDS 2024 Table 12.3.3A
+Southern Pine,No.2,"5""x5"" & larger, Posts and Timbers",,,,,,,,,NDS 2024 Supplement Table 4D,pending,For 6x6 and larger posts; specific_gravity from NDS 2024 Table 12.3.3A
