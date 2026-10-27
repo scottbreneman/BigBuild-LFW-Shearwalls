@@ -8,17 +8,28 @@ Each component type is one CSV file in `src/design/components/data/`. An enginee
 
 Units are US customary and are written into the column names: `_in`, `_psi`, `_plf`, `_lb`, `_kips_per_in`.
 
-## The three bookkeeping columns
+## The bookkeeping columns
 
-Every table ends with the same three columns.
+Every table ends with the same seven columns, matching the capacity-table row in [spec-io.md](spec-io.md) §1 and the source-status rule in [hackathon-plan.md](hackathon-plan.md).
 
 | Column | Meaning |
 | --- | --- |
-| `source` | Where the row's values came from: standard + edition + table, or manufacturer catalog edition + page, or evaluation report number. Must never be blank; the loader fails on a blank source. |
-| `status` | `pending` — row exists but values are not yet entered or not yet checked. `verified` — values transcribed and checked by an engineer against the cited source. `superseded` — kept for history, never returned. |
-| `notes` | Free text: what still needs filling, footnotes that apply, edition differences. |
+| `source_doc` | The document: standard + edition (`SDPWS 2021`), catalog + edition, or evaluation report number. Never blank; the loader fails on a blank `source_doc`. |
+| `table` | Table or section inside the document (`Table 4.3A`). Blank only when the document has no table structure. |
+| `page` | Printed page number(s). Fill it when you enter values so a checker can go straight there. |
+| `status` | See below. |
+| `entered_by` | Initials of whoever typed the values in. |
+| `checked_by` | Initials of the engineer who checked them against the source. Required for `verified`; the loader rejects a `verified` row without it. |
+| `notes` | Free text: what still needs filling, edition differences, anything a reviewer should know. |
 
-**Every seeded row is `pending`.** That includes the lumber dressed sizes and nail dimensions, which were typed in from common knowledge and need a two-minute check against the cited table before they are flipped to `verified`. Design values (`Fb_psi`, `v_seismic_nominal_plf`, allowable hold-down tension, …) were deliberately left blank: the onboarding guidance is not to have a coding assistant reconstruct standard tables from memory, and the AGENTS.md rule is not to invent table entries.
+| `status` | Meaning | Returned by lookups? |
+| --- | --- | --- |
+| `pending` | Row exists (usually geometry only); design values not entered | No, unless `allow_pending=True` |
+| `memory` | Values entered from recall, not yet checked against the source page | Yes, and listed by `items_to_verify()` |
+| `verified` | Values entered and checked by a named engineer against the named page | Yes |
+| `superseded` | Kept for history | Never |
+
+**Every seeded row is `pending`.** That includes the lumber dressed sizes and nail dimensions, which were typed in from common knowledge and need a two-minute check against the cited table before they are set to `verified`. Design values (`Fb_psi`, `v_seismic_nominal_plf`, allowable hold-down tension, …) were deliberately left blank: per the team plan, Claude does not supply SDPWS table values, and AGENTS.md says not to invent table entries. An engineer enters them and marks each row `memory` or `verified` with initials.
 
 ## Tables
 
@@ -74,7 +85,7 @@ One row per rod diameter × material (standard strength and high strength). Fill
 
 1. Open the CSV in Excel or a text editor. Keep the header row exactly as it is.
 2. With the cited standard or catalog open, fill one row at a time. Put the page or table in `source` if it is not already specific enough.
-3. Set `status` to `verified` only after a second look against the source. If you transcribed but did not re-check, leave `pending` and say so in `notes`.
+3. Put your initials in `entered_by`. Set `status` to `memory` if you entered from recall, or `verified` once you (or a second engineer) have checked the row against the cited page — and put the checker's initials in `checked_by` and the page in `page`.
 4. Save as CSV (UTF-8). Do not let Excel reformat fractions or add thousands separators.
 5. Run `python -m pytest tests/test_component_library.py -q` from the repo root. The tests check parsing, citations, and cross-references between tables; they do not check the values.
 6. Commit with a message saying which table and which source you worked from.
@@ -85,11 +96,13 @@ One row per rod diameter × material (standard strength and high strength). Fill
 from design.components import load_library
 
 lib = load_library()
-post = lib.lumber_size("4x4")                     # raises UnverifiedComponentError until verified
+post = lib.lumber_size("4x4")                     # raises UnverifiedComponentError while pending
 post = lib.lumber_size("4x4", allow_pending=True) # exploratory use only
-asm = lib.assembly("WSP-SH-7/16-8dc-4")
+asm = lib.assembly("WSP-SH-7/16-8dc-4")           # returns verified or memory rows
 nail = lib.nail(asm.nail_designation)
-print(lib.pending())                              # how many rows per table still need values
+print(lib.status_counts())                        # rows per table by status
+for row in lib.items_to_verify():                 # feed the report's "Items to verify"
+    print(row.status.value, row.source_doc, row.table, row.page)
 ```
 
-Anything that reaches a reported calculation must come from a `verified` row; `allow_pending=True` is for development and must not appear in the design checks.
+The report builder prints each value's `status` beside it. A `memory` row is allowed in the build but must appear in the report's "Items to verify" appendix; `items_to_verify()` returns exactly that list for the component data. `allow_pending=True` is for development and must not appear in the design checks.

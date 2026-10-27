@@ -18,29 +18,43 @@ from typing import Optional
 
 
 class Status(str, Enum):
-    """Verification state of a data record.
+    """Source status of a data record, matching docs/spec-io.md and the
+    team's transparency rule in docs/hackathon-plan.md.
 
-    verified   - values transcribed from the cited source and checked by an
-                 engineer against that source.
-    pending    - row exists (usually geometry only); design values not yet
-                 entered or not yet checked. Lookups refuse these by default.
+    verified   - values entered and checked by an engineer against the named
+                 source page; ``checked_by`` names the checker.
+    memory     - values entered from recall (an engineer's), not yet checked
+                 against the source. Usable in the build; always flagged and
+                 listed in the report's "Items to verify".
+    pending    - row exists (usually geometry only) but design values have
+                 not been entered. Lookups refuse these by default.
     superseded - kept for history; never returned by lookups.
     """
 
     VERIFIED = "verified"
+    MEMORY = "memory"
     PENDING = "pending"
     SUPERSEDED = "superseded"
 
 
 @dataclass(frozen=True)
 class SourcedRecord:
-    """Fields common to every component record."""
+    """Fields common to every component record (spec-io.md §1, capacity table row)."""
 
-    source: str
-    """Citation: standard + edition + table/section, or manufacturer catalog
-    edition + page, or evaluation report number. Never blank."""
+    source_doc: str
+    """Document: standard + edition ("SDPWS 2021"), catalog + edition, or
+    evaluation report number. Never blank."""
+
+    table: str
+    """Table or section within the document ("Table 4.3A"). May be blank
+    only when the document has no table structure (e.g. an ESR)."""
+
+    page: str
+    """Printed page number(s) in the cited document. Blank until entered."""
 
     status: Status
+    entered_by: str = ""  # initials of whoever typed the values in
+    checked_by: str = ""  # initials of the engineer who checked them; required for verified
     notes: str = ""
 
 

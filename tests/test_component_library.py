@@ -13,6 +13,7 @@ import pytest
 
 from design.components import (
     ComponentDataError,
+    ComponentLibrary,
     Status,
     UnverifiedComponentError,
     load_library,
@@ -40,8 +41,15 @@ def test_every_table_loads(lib):
 def test_every_row_has_a_source_and_known_status(lib):
     for name in RECORD_TYPES:
         for rec in getattr(lib, name):
-            assert rec.source.strip(), f"{name}: blank source on {rec}"
+            assert rec.source_doc.strip(), f"{name}: blank source_doc on {rec}"
             assert isinstance(rec.status, Status)
+
+
+def test_verified_rows_name_a_checker(lib):
+    for name in RECORD_TYPES:
+        for rec in getattr(lib, name):
+            if rec.status is Status.VERIFIED:
+                assert rec.checked_by.strip(), f"{name}: verified row without checked_by: {rec}"
 
 
 def test_csv_columns_match_dataclass_fields():
@@ -90,9 +98,28 @@ def test_pending_rows_are_refused_by_default(lib):
     assert lib.nail(pending[0].designation, allow_pending=True) is pending[0]
 
 
+def test_memory_rows_are_usable_but_flagged():
+    row = LumberSize(nominal="2x4", thickness_in=1.5, width_in=3.5,
+                     source_doc="NDS 2024 Supplement", table="Table 1B", page="",
+                     status=Status.MEMORY, entered_by="VL")
+    lib = ComponentLibrary(lumber_sizes=[row], lumber_design_values=[], sheathing_panels=[],
+                           nails=[], shear_wall_assemblies=[], holddowns=[],
+                           continuous_rod_systems=[])
+    assert lib.lumber_size("2x4") is row  # memory rows are returned without allow_pending
+    assert lib.items_to_verify() == [row]  # ...but listed for verification
+
+
 def test_pending_report_counts_every_table(lib):
     report = lib.pending()
     assert set(report) == set(RECORD_TYPES)
+    counts = lib.status_counts()
+    assert set(counts) == set(RECORD_TYPES)
+    assert all(set(c) == {s.value for s in Status} for c in counts.values())
+
+
+def test_items_to_verify_excludes_verified_and_superseded(lib):
+    for rec in lib.items_to_verify():
+        assert rec.status in (Status.PENDING, Status.MEMORY)
 
 
 # --------------------------------------------------------------------------
@@ -106,35 +133,41 @@ def _write(tmp_path: Path, text: str) -> Path:
     return p
 
 
-HEADER = "nominal,thickness_in,width_in,source,status,notes\n"
+HEADER = "nominal,thickness_in,width_in,source_doc,table,page,status,entered_by,checked_by,notes\n"
 
 
 def test_blank_source_is_rejected(tmp_path):
-    p = _write(tmp_path, HEADER + "2x4,1.5,3.5,,pending,\n")
+    p = _write(tmp_path, HEADER + "2x4,1.5,3.5,,,,pending,,,\n")
     with pytest.raises(ComponentDataError, match="line 2"):
         read_records(p, LumberSize)
 
 
 def test_unknown_status_is_rejected(tmp_path):
-    p = _write(tmp_path, HEADER + "2x4,1.5,3.5,NDS,maybe,\n")
+    p = _write(tmp_path, HEADER + "2x4,1.5,3.5,NDS,,,maybe,,,\n")
     with pytest.raises(ComponentDataError, match="status"):
         read_records(p, LumberSize)
 
 
 def test_non_numeric_value_is_rejected(tmp_path):
-    p = _write(tmp_path, HEADER + "2x4,one and a half,3.5,NDS,pending,\n")
+    p = _write(tmp_path, HEADER + "2x4,one and a half,3.5,NDS,,,pending,,,\n")
     with pytest.raises(ComponentDataError, match="thickness_in"):
         read_records(p, LumberSize)
 
 
 def test_missing_column_is_rejected(tmp_path):
-    p = _write(tmp_path, "nominal,thickness_in,source,status,notes\n2x4,1.5,NDS,pending,\n")
+    p = _write(tmp_path, "nominal,thickness_in,source_doc,table,page,status,entered_by,checked_by,notes\n2x4,1.5,NDS,,,pending,,,\n")
     with pytest.raises(ComponentDataError, match="missing columns"):
         read_records(p, LumberSize)
 
 
+def test_verified_without_checker_is_rejected(tmp_path):
+    p = _write(tmp_path, HEADER + "2x4,1.5,3.5,NDS,Table 1B,12,verified,VL,,\n")
+    with pytest.raises(ComponentDataError, match="checked_by"):
+        read_records(p, LumberSize)
+
+
 def test_blank_lines_are_ignored(tmp_path):
-    p = _write(tmp_path, HEADER + "\n2x4,1.5,3.5,NDS,pending,\n,,,,,\n")
+    p = _write(tmp_path, HEADER + "\n2x4,1.5,3.5,NDS,,,pending,,,\n,,,,,,,,,\n")
     assert len(read_records(p, LumberSize)) == 1
 
 
@@ -144,7 +177,8 @@ def test_blank_lines_are_ignored(tmp_path):
 
 
 def test_lumber_section_properties_are_rectangle_formulas():
-    s = LumberSize(nominal="2x6", thickness_in=1.5, width_in=5.5, source="test", status=Status.VERIFIED)
+    s = LumberSize(nominal="2x6", thickness_in=1.5, width_in=5.5, source_doc="test", table="",
+                   page="", status=Status.VERIFIED, checked_by="test")
     assert s.area_in2 == pytest.approx(8.25)
     assert s.Sx_in3 == pytest.approx(1.5 * 5.5**2 / 6)
     assert s.Ix_in4 == pytest.approx(1.5 * 5.5**3 / 12)

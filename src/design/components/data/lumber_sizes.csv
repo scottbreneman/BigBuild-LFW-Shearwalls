@@ -1,13 +1,13 @@
-nominal,thickness_in,width_in,source,status,notes
-2x4,1.5,3.5,NDS 2024 Supplement Table 1B (dressed sizes of sawn lumber),pending,Standard dressed dimensions; confirm against the cited table and set verified
-2x6,1.5,5.5,NDS 2024 Supplement Table 1B (dressed sizes of sawn lumber),pending,Standard dressed dimensions; confirm against the cited table and set verified
-2x8,1.5,7.25,NDS 2024 Supplement Table 1B (dressed sizes of sawn lumber),pending,Standard dressed dimensions; confirm against the cited table and set verified
-2x10,1.5,9.25,NDS 2024 Supplement Table 1B (dressed sizes of sawn lumber),pending,Standard dressed dimensions; confirm against the cited table and set verified
-2x12,1.5,11.25,NDS 2024 Supplement Table 1B (dressed sizes of sawn lumber),pending,Standard dressed dimensions; confirm against the cited table and set verified
-3x4,2.5,3.5,NDS 2024 Supplement Table 1B (dressed sizes of sawn lumber),pending,Standard dressed dimensions; confirm against the cited table and set verified
-3x6,2.5,5.5,NDS 2024 Supplement Table 1B (dressed sizes of sawn lumber),pending,Standard dressed dimensions; confirm against the cited table and set verified
-4x4,3.5,3.5,NDS 2024 Supplement Table 1B (dressed sizes of sawn lumber),pending,Standard dressed dimensions; confirm against the cited table and set verified
-4x6,3.5,5.5,NDS 2024 Supplement Table 1B (dressed sizes of sawn lumber),pending,Standard dressed dimensions; confirm against the cited table and set verified
-4x8,3.5,7.25,NDS 2024 Supplement Table 1B (dressed sizes of sawn lumber),pending,Standard dressed dimensions; confirm against the cited table and set verified
-6x6,5.5,5.5,NDS 2024 Supplement Table 1B (dressed sizes of sawn lumber),pending,Standard dressed dimensions; confirm against the cited table and set verified
-6x8,5.5,7.5,NDS 2024 Supplement Table 1B (dressed sizes of sawn lumber),pending,Standard dressed dimensions; confirm against the cited table and set verified
+nominal,thickness_in,width_in,source_doc,table,page,status,entered_by,checked_by,notes
+2x4,1.5,3.5,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
+2x6,1.5,5.5,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
+2x8,1.5,7.25,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
+2x10,1.5,9.25,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
+2x12,1.5,11.25,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
+3x4,2.5,3.5,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
+3x6,2.5,5.5,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
+4x4,3.5,3.5,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
+4x6,3.5,5.5,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
+4x8,3.5,7.25,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
+6x6,5.5,5.5,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
+6x8,5.5,7.5,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified

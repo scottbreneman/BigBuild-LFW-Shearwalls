@@ -107,8 +107,12 @@ def read_records(path: Path, record_type: type[R]) -> list[R]:
             for name in field_names:
                 where = f"{path.name} line {line_no}, column {name}"
                 kwargs[name] = _coerce(row.get(name, ""), hints[name], where=where)
-            if not kwargs["source"]:
-                raise ComponentDataError(f"{path.name} line {line_no}: source must not be blank")
+            if not kwargs["source_doc"]:
+                raise ComponentDataError(f"{path.name} line {line_no}: source_doc must not be blank")
+            if kwargs["status"] is Status.VERIFIED and not kwargs["checked_by"]:
+                raise ComponentDataError(
+                    f"{path.name} line {line_no}: verified rows must name checked_by"
+                )
             records.append(record_type(**kwargs))
     return records
 
@@ -127,14 +131,14 @@ def _select(records: Iterable[R], allow_pending: bool, what: str, **criteria) ->
         raise LookupError(f"no {what} matching {criteria}")
     if allow_pending:
         return hits
-    verified = [r for r in hits if r.status is Status.VERIFIED]
-    if not verified:
+    usable = [r for r in hits if r.status in (Status.VERIFIED, Status.MEMORY)]
+    if not usable:
         raise UnverifiedComponentError(
-            f"{what} matching {criteria} exist but none is verified; "
-            "fill in values from the cited source and set status=verified, "
-            "or pass allow_pending=True for exploratory work"
+            f"{what} matching {criteria} exist but values have not been entered "
+            "(status=pending); enter them from the cited source and set status to "
+            "verified or memory, or pass allow_pending=True for exploratory work"
         )
-    return verified
+    return usable
 
 
 def _one(hits: list[R], what: str, **criteria) -> R:
@@ -218,12 +222,30 @@ class ComponentLibrary:
 
     # ---- bookkeeping -------------------------------------------------------
 
-    def pending(self) -> dict[str, int]:
-        """Count of pending rows per table; useful for a fill-in progress report."""
+    def status_counts(self) -> dict[str, dict[str, int]]:
+        """Rows per table by status, e.g. {"nails": {"verified": 4, "memory": 0, "pending": 6}}."""
         out = {}
         for name in RECORD_TYPES:
             rows = getattr(self, name)
-            out[name] = sum(1 for r in rows if r.status is Status.PENDING)
+            out[name] = {s.value: sum(1 for r in rows if r.status is s) for s in Status}
+        return out
+
+    def pending(self) -> dict[str, int]:
+        """Count of pending rows per table; useful for a fill-in progress report."""
+        return {name: counts["pending"] for name, counts in self.status_counts().items()}
+
+    def items_to_verify(self) -> list[SourcedRecord]:
+        """Every non-superseded row whose status is not ``verified``.
+
+        This is the component-data half of the report's "Items to verify"
+        appendix described in docs/spec-io.md §6.
+        """
+        out: list[SourcedRecord] = []
+        for name in RECORD_TYPES:
+            out.extend(
+                r for r in getattr(self, name)
+                if r.status not in (Status.VERIFIED, Status.SUPERSEDED)
+            )
         return out
 
 
