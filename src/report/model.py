@@ -8,10 +8,18 @@ disagree about content.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Union
+from typing import Literal, Union
 
-# Row classes the HTML renderer styles; Markdown ignores them.
-ROW_CLASSES = ("pass", "fail", "needs-input", "info", "governing")
+from design.trace import Step
+
+# Story tables list the top story first (5, 4, 3, 2, 1), like the building. Set False for bottom-up.
+STORIES_TOP_DOWN = True
+
+
+def story_order(n: int) -> list[int]:
+    """Story numbers (1 = bottom) in the order report tables list them."""
+    stories = list(range(1, n + 1))
+    return stories[::-1] if STORIES_TOP_DOWN else stories
 
 
 @dataclass(frozen=True)
@@ -20,12 +28,20 @@ class Paragraph:
 
 
 @dataclass(frozen=True)
+class Subheading:
+    text: str
+
+
+@dataclass(frozen=True)
 class Table:
     headers: tuple[str, ...]
     rows: tuple[tuple[str, ...], ...]
     caption: str = ""
-    row_classes: tuple[str, ...] = ()  # one entry per row ("" for none); may be empty
+    # One entry per row, space-separated class names the HTML renderer styles
+    # (pass, fail, needs-input, info, governing); Markdown ignores them.
+    row_classes: tuple[str, ...] = ()
     align_right: tuple[int, ...] = ()  # column indexes holding numbers
+    symbol_cols: tuple[int, ...] = ()  # column indexes holding symbols such as M_OT (HTML shows subscripts)
 
     def __post_init__(self) -> None:
         for r in self.rows:
@@ -35,7 +51,27 @@ class Table:
             raise ValueError("row_classes must be empty or match the number of rows")
 
 
-Block = Union[Paragraph, Table]
+@dataclass(frozen=True)
+class StepTable:
+    """Calc-trace steps shown with their equation (typeset as LaTeX), reference and source status.
+
+    ``calc`` shows the substituted values and result; ``catalog`` shows the equation and its
+    reference only, once per check, without numbers.
+    """
+
+    steps: tuple[Step, ...]
+    caption: str = ""
+    mode: Literal["calc", "catalog"] = "calc"
+
+
+@dataclass(frozen=True)
+class Figure:
+    svg: str  # a complete <svg> element
+    caption: str = ""
+    markdown_note: str = "Figure not included in the Markdown copy; see the HTML report."
+
+
+Block = Union[Paragraph, Subheading, Table, StepTable, Figure]
 
 
 @dataclass(frozen=True)
