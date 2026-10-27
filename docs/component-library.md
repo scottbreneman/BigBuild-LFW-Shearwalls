@@ -29,7 +29,7 @@ Every table ends with the same seven columns, matching the capacity-table row in
 | `verified` | Values entered and checked by a named engineer against the named page | Yes |
 | `superseded` | Kept for history | Never |
 
-**Every seeded row is `pending`.** That includes the lumber dressed sizes and nail dimensions, which were typed in from common knowledge and need a two-minute check against the cited table before they are set to `verified`. Design values (`Fb_psi`, `v_seismic_nominal_plf`, allowable hold-down tension, …) were deliberately left blank: per the team plan, Claude does not supply SDPWS table values, and AGENTS.md says not to invent table entries. An engineer enters them and marks each row `memory` or `verified` with initials.
+**Rows start as `pending` until values are entered.** Rows transcribed from a table image an engineer supplied (lumber sizes from NDS Table 1B, WSP shear-wall assemblies from SDPWS Table 4.3A) are `memory` with the transcriber in `entered_by`; an engineer checks them against the printed page and sets `verified` with initials in `checked_by`. Design values nobody has supplied a source page for (`Fb_psi`, allowable hold-down tension, …) stay blank: per the team plan, Claude does not supply table values from recall, and AGENTS.md says not to invent table entries.
 
 ## Tables
 
@@ -39,37 +39,40 @@ Nominal size, actual thickness (smaller dimension) and width (larger dimension).
 
 ### `lumber_design_values.csv` — reference design values
 
-One row per species group × grade × size class. Reference (unadjusted) values `Fb`, `Ft`, `Fv`, `Fc⊥`, `Fc`, `E`, `Emin` in psi, plus specific gravity `G` for fastener design.
+One row per species group × grade × size class. Reference (unadjusted) values `Fb`, `Ft`, `Fv`, `Fc⊥`, `Fc`, `E`, `Emin` in psi, plus specific gravity `G` from the table's own Specific Gravity column.
 
-| Species group | Rows seeded | Source |
-| --- | --- | --- |
-| Douglas Fir-Larch | SS, No.1, No.2, Stud for `2"-4" thick, 2" & wider`; No.1, No.2 Posts & Timbers | NDS 2024 Supplement Tables 4A and 4D |
-| Spruce-Pine-Fir | SS, No.1, No.2, Stud for `2"-4" thick, 2" & wider` | NDS 2024 Supplement Table 4A |
-| Southern Pine | SS, No.1, No.2, Stud for each of 2x4 … 2x12; No.1, No.2 Posts & Timbers | NDS 2024 Supplement Tables 4B and 4D |
+| Species group | Rows entered | `size_class` label | Source |
+| --- | --- | --- | --- |
+| Douglas Fir-Larch | SS, No.1 & Btr, No.1, No.2, No.3, Stud | `2"-4" thick, 2" & wider` | NDS 2024 Supplement Table 4A |
+| Spruce-Pine-Fir | SS, No.1, No.2, No.3, Stud | `2"-4" thick, 2" & wider` | NDS 2024 Supplement Table 4A (prints No.1 and No.2 as one row) |
+| Southern Pine | SS, No.1, No.2, No.3, Stud for each width | `2" - 4" wide`, `5" - 6" wide`, `8" wide` | NDS 2024 Supplement Table 4B, p. 40 (prints No.3 and Stud as one row) |
 
-Southern Pine values are width-specific, so the `size_class` column holds the actual size (`2x6`) rather than a range. Use the source table's own row label in `size_class` so a reviewer can find it. `G` comes from NDS 2024 Table 12.3.3A; note that in `notes` if you cite a different table.
+Where the table prints two grades on one row (SPF No.1/No.2; Southern Pine No.3 and Stud) the values are entered once per grade so a lookup by either grade works; the `notes` column says so. Southern Pine 10" and 12" widths, the Dense/Non-Dense grades, Mixed Southern Pine, DF-L (North), SPF (South), and Construction/Standard/Utility grades were not entered. Add rows if the team needs them; do not repurpose existing ones.
 
-If the team settles on a species not listed (Hem-Fir, for example), add rows; do not repurpose existing ones.
+The Table 4A `size_class` label combines the table heading (2"–4" thick) with the row label (2" & wider) because the engine's `inputs.py` already keys on that string.
+
+### `size_factors.csv` — Table 4A size factors C_F
+
+The Size Factors table from NDS 2024 Supplement Table 4A Adjustment Factors (p. 32): one row per grade group × width label, with C_F for F_b (2"&3" thick and 4" thick columns), F_t and F_c. `lib.size_factor(grade, nominal)` maps a grade and a nominal size such as `2x6` to the right row. These apply to **Table 4A species only**; Table 4B Southern Pine values are already width-specific and use Table 4B's own adjustment factors. Stud grade 8" and wider uses No.3 values and factors, as the table says. The other adjustment factors on that page (C_r, C_M, C_fu) are single values or small tables that live with the design module's factors.
 
 ### `sheathing_panels.csv` — wood structural panels
 
-OSB and plywood, `Sheathing` and `Structural I` grades, nominal thicknesses 3/8 through 5/8. `nominal_thickness_in` is the decimal of the label and is what the assembly table joins on. `span_rating` and `exposure` are blank until something needs them.
+OSB and plywood, `Sheathing` and `Structural I` grades, nominal thicknesses 3/8 through 5/8. `nominal_thickness_in` is the decimal of the label and is what the assembly table joins on. `span_rating` and `exposure` are blank until something needs them. `Gvtv_lb_per_in` is the panel shear rigidity G_v t_v (SDPWS Commentary Tables C4.2.2A/B), used only by the 4-term deflection option.
 
 ### `nails.csv` — nail dimensions
 
-Trade designation (`8d common`), type, diameter and length in inches. `Fyb` (bending yield strength) is blank; fill from NDS 2024 Table I1 only if nail yield-mode design is added. Source: NDS 2024 Appendix L, Table L4. Shear-wall assembly rows reference nails by `designation`, and a test checks the reference resolves.
+Trade designation (`8d common`), type, diameter and length in inches. `Fyb` (bending yield strength) is blank; fill from NDS 2024 Table I1 only if nail yield-mode design is added. `slip_den_*`, `slip_exp_*` and `slip_max_load_lb` hold the fastener slip equation e_n = (V_n / den)^exp for dry and green framing (SDPWS Commentary Table C4.2.2D), used only by the 4-term deflection option. Source: NDS 2024 Appendix L, Table L4. Shear-wall assembly rows reference nails by `designation`, and a test checks the reference resolves.
 
 ### `shear_wall_assemblies.csv` — SDPWS Table 4.3A structure
 
 One row per (panel grade, minimum panel thickness, nail, edge nail spacing) combination — the same cell structure as SDPWS 2021 Table 4.3A for blocked wood structural panel shear walls. Fill, per row:
 
 - `min_fastener_penetration_in`
-- `v_seismic_nominal_plf` — nominal unit shear capacity, seismic
+- `v_n_plf` — the single nominal unit shear capacity the table prints per cell
 - `Ga_osb_kips_per_in` and `Ga_plywood_kips_per_in` — apparent shear stiffness
-- `v_wind_nominal_plf` — nominal unit shear capacity, wind
-- `footnotes` — the footnote letters that apply to that row (framing species, 3x framing at close spacing, panel orientation, etc.)
+- `footnotes` — the footnote numbers that apply to that row (the table-wide 1, 3, 6; the WSP-group 4, 5; row-specific 2, 8, 10; nail-column 9)
 
-The values are **nominal** exactly as tabulated. The ASD reduction factor and LRFD resistance factor from SDPWS 4.3.3 are applied in the design module, which must cite that section.
+The values are **nominal** exactly as tabulated. SDPWS 2021 Table 4.3A does not have separate seismic and wind columns; the ASD allowable and LRFD factored values, including the seismic/wind distinction, come from SDPWS 4.1.4 (table footnote 1) and are applied in the design module, which cites that section. The WSP rows of Table 4.3A were transcribed on 2026-10-27 from the printed table and are `memory` until an engineer checks them.
 
 `assembly_id` is a stable key of the form `WSP-<grade>-<thickness>-<nail>-<spacing>`, e.g. `WSP-S1-15/32-10dc-3` (Structural I, 15/32 in., 10d common, 3 in. edge spacing). Once an ID is used anywhere, do not rename it; mark the row `superseded` and add a new one.
 

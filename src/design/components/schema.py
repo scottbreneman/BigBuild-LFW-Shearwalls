@@ -136,6 +136,28 @@ class LumberDesignValues(SourcedRecord):
     specific_gravity: Optional[float] = None  # G, for fastener design
 
 
+@dataclass(frozen=True)
+class SizeFactor(SourcedRecord):
+    """One row of the NDS Supplement Table 4A size factors, C_F.
+
+    Applies to dimension lumber 2" to 4" thick whose reference values come
+    from Table 4A (Douglas Fir-Larch, Spruce-Pine-Fir, ...). Table 4B
+    (Southern Pine) values are already width-specific and use Table 4B's own
+    adjustment factors, not these.
+
+    ``grade_group`` and ``width_label`` are the table's own row labels.
+    C_F for F_b depends on thickness; the 4" thickness column is None where
+    the table prints a dash.
+    """
+
+    grade_group: str = ""  # "Select Structural, No.1 & Btr, No.1, No.2, No.3" | "Stud" | ...
+    width_label: str = ""  # '2", 3", & 4"', '5"', '6"', '8"', '10"', '12"', '14" & wider', ...
+    CF_Fb_thickness_2_3: Optional[float] = None
+    CF_Fb_thickness_4: Optional[float] = None
+    CF_Ft: Optional[float] = None
+    CF_Fc: Optional[float] = None
+
+
 # --------------------------------------------------------------------------
 # Sheathing panels
 # --------------------------------------------------------------------------
@@ -151,6 +173,7 @@ class SheathingPanel(SourcedRecord):
     nominal_thickness_in: float = 0.0
     span_rating: str = ""  # "24/16", "32/16", ... blank if not tracked
     exposure: str = ""  # "Exposure 1", "Exterior", blank if not tracked
+    Gvtv_lb_per_in: Optional[float] = None  # panel shear rigidity G_v t_v (SDPWS Commentary Tables C4.2.2A/B), 4-term deflection
 
 
 # --------------------------------------------------------------------------
@@ -169,6 +192,12 @@ class Nail(SourcedRecord):
     length_in: float = 0.0
     head_diameter_in: Optional[float] = None
     bending_yield_Fyb_psi: Optional[float] = None
+    # Fastener slip e_n = (V_n / den)^exp, V_n in lb per nail (SDPWS Commentary Table C4.2.2D), 4-term deflection
+    slip_den_dry: Optional[float] = None
+    slip_exp_dry: Optional[float] = None
+    slip_den_green: Optional[float] = None
+    slip_exp_green: Optional[float] = None
+    slip_max_load_lb: Optional[float] = None  # upper end of the tabulated load range
 
 
 # --------------------------------------------------------------------------
@@ -180,11 +209,14 @@ class Nail(SourcedRecord):
 class ShearWallAssembly(SourcedRecord):
     """One row of a nominal unit shear capacity table for WSP shear walls.
 
-    Mirrors the columns of SDPWS 2021 Table 4.3A for blocked wood structural
-    panel shear walls. ``v_*_plf`` are *nominal* unit shear capacities as
-    tabulated; the ASD/LRFD conversion lives in the design module per
-    SDPWS 4.3.3. ``Ga_*`` is the apparent shear-wall shear stiffness
-    (kips/in) used in the SDPWS deflection equation.
+    Mirrors the columns of SDPWS 2021 Table 4.3A for wood structural panel
+    shear walls. ``v_n_plf`` is the single *nominal* unit shear capacity the
+    table prints per cell; the table's footnote 1 points to SDPWS 4.1.4 for
+    the ASD allowable and LRFD factored values, and that conversion (and any
+    seismic/wind distinction) lives in the design module with its own
+    citation. ``Ga_*`` is the apparent shear-wall shear stiffness (kips/in)
+    used in the SDPWS deflection equation, tabulated for OSB and for
+    plywood.
     """
 
     assembly_id: str = ""  # stable key, e.g. "WSP-S-7/16-8dc-6"
@@ -195,11 +227,10 @@ class ShearWallAssembly(SourcedRecord):
     min_fastener_penetration_in: Optional[float] = None
     nail_designation: str = ""  # key into nails.csv
     edge_nail_spacing_in: float = 0.0  # 6, 4, 3, 2
-    v_seismic_nominal_plf: Optional[float] = None
+    v_n_plf: Optional[float] = None
     Ga_osb_kips_per_in: Optional[float] = None
     Ga_plywood_kips_per_in: Optional[float] = None
-    v_wind_nominal_plf: Optional[float] = None
-    footnotes: str = ""  # source table footnote letters that apply to the row
+    footnotes: str = ""  # source table footnote numbers that apply to the row
 
 
 # --------------------------------------------------------------------------
@@ -252,6 +283,7 @@ class ContinuousRodSystem(SourcedRecord):
 RECORD_TYPES = {
     "lumber_sizes": LumberSize,
     "lumber_design_values": LumberDesignValues,
+    "size_factors": SizeFactor,
     "sheathing_panels": SheathingPanel,
     "nails": Nail,
     "shear_wall_assemblies": ShearWallAssembly,

@@ -37,11 +37,19 @@ def test_validation_blocks_the_run():
 
 
 def test_pending_production_library_gives_needs_input_not_a_crash():
-    # Every production row is pending until the engineers fill the tables.
+    # A pending row (values not yet entered) must surface as NEEDS_INPUT, not crash.
+    # The production Table 4.3A rows are now filled (status memory), so force one back to pending.
+    from design.components import Status, load_library
+
+    lib = load_library()
+    pending = [dataclasses.replace(a, status=Status.PENDING, v_n_plf=None)
+               if a.assembly_id == "WSP-S1-15/32-10dc-4" else a
+               for a in lib.shear_wall_assemblies]
+    lib = dataclasses.replace(lib, shear_wall_assemblies=pending)
     inp = inputs()
     for k in range(5):
         inp = _with_story(inp, k, assembly_id="WSP-S1-15/32-10dc-4")
-    r = run_design(inp)
+    r = run_design(inp, lib)
     assert r.status is OverallStatus.INCOMPLETE
     assert r.needs_input
     assert all(item.decision for item in r.needs_input)
@@ -80,7 +88,8 @@ def test_missing_size_factor_is_reported():
 
 def test_wind_runs_with_explicit_gaps():
     r = run_design(inputs(load_type="wind"), library())
-    assert r.check("S1.shear").status is CheckStatus.NEEDS_INPUT  # no wind column in the example rows
+    # Table 4.3A has a single v_n; wind differs from seismic only through Omega (SDPWS 4.1.4).
+    assert r.check("S1.shear").status in (CheckStatus.PASS, CheckStatus.FAIL)
     assert r.check("S1.drift").decision == "D6"  # no wind drift limit given
     r2 = run_design(inputs(load_type="wind", wind_drift_limit_ratio=1 / 400), library())
     d1 = r2.check("S1.drift")

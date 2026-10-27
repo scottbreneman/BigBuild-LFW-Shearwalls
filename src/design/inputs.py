@@ -50,6 +50,9 @@ class RodSystem:
     slack_in: float = 0.0  # take-up device travel before engagement (example Table 3.17A)
     takeup_elongation_in: float = 0.0  # manufacturer value (example Table 3.17A)
     rod_length_ft: float | None = None  # bearing restraint to restraint; default story height
+    bearing_hole_in: float | None = None  # rod hole in the wood under the plate; default rod + 3/16 in.
+    takeup_device: bool = True  # shrinkage-compensating take-up device present (example §3.4.3)
+    shrinkage_in: float = 0.0  # story shrinkage; counted only without a take-up device (example Table 3.17B)
 
 
 Tiedown = Union[GenericHoldDown, RodSystem]
@@ -84,7 +87,10 @@ class DesignInputs:
     roof_uplift_plf: float = 0.0  # wind: strength-level net roof uplift on the wall (example §4.5.2)
     wind_drift_limit_ratio: float | None = None  # wind: allowable story drift / story height, e.g. 1/400 (D6)
     wood_bearing_factor: float = 1.75  # wood-to-wood crushing amplification (example §3.4.3, EOR judgement)
-    carry_rotation: bool = False  # D6: add rotation from stories below (not in the example)
+    carry_rotation: bool = False  # D6: add rigid-body and bending rotation of the stories below
+    deflection_method: Literal["3-term", "4-term"] = "3-term"  # SDPWS Eq. 4.3-1 or Commentary Eq. C4.3.4-1
+    framing_moisture: Literal["dry", "green"] = "dry"  # selects the nail-slip equation (4-term only)
+    restraint_each_level: bool = True  # tie-down bearing restraint at every floor; False accumulates Δ_a (Table 3.17B)
     project_name: str = ""
 
 
@@ -112,6 +118,10 @@ def validate(inp: DesignInputs) -> list[InputError]:
         need(inp.risk_category in ("I", "II", "III", "IV"), "risk_category", "one of I, II, III, IV")
     need(inp.wood_bearing_factor >= 1.0, "wood_bearing_factor", "must be >= 1.0")
     need(inp.roof_uplift_plf >= 0, "roof_uplift_plf", "must be >= 0")
+    need(inp.deflection_method in ("3-term", "4-term"), "deflection_method", "'3-term' or '4-term'")
+    need(inp.framing_moisture in ("dry", "green"), "framing_moisture", "'dry' or 'green'")
+    need(not (inp.carry_rotation and not inp.restraint_each_level), "carry_rotation",
+         "cannot be combined with restraint_each_level=False (both carry lower-story deformation up)")
     if inp.wind_drift_limit_ratio is not None:
         need(0 < inp.wind_drift_limit_ratio < 0.1, "wind_drift_limit_ratio", "a ratio such as 1/400 = 0.0025")
 
@@ -137,6 +147,10 @@ def validate(inp: DesignInputs) -> list[InputError]:
             for name in ("plate_width_in", "plate_length_in", "plate_thickness_in", "plate_Fy_psi"):
                 need(getattr(t, name) > 0, f"{p}.tiedown.{name}", "must be positive")
             need(t.slack_in >= 0 and t.takeup_elongation_in >= 0, f"{p}.tiedown", "slack and take-up must be >= 0")
+            need(t.shrinkage_in >= 0, f"{p}.tiedown.shrinkage_in", "must be >= 0")
+            if t.bearing_hole_in is not None:
+                need(0 < t.bearing_hole_in < min(t.plate_width_in, t.plate_length_in), f"{p}.tiedown.bearing_hole_in",
+                     "must be positive and smaller than the plate")
         elif isinstance(t, GenericHoldDown):
             need(t.model is not None or t.T_allow_lb is not None, f"{p}.tiedown",
                  "give a hold-down model or T_allow_lb")
