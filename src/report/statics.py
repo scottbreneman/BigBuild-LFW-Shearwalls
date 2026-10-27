@@ -44,9 +44,10 @@ def build_statics(result: DesignResult) -> Section:
     n = len(result.inputs.stories)
     blocks: list = [
         Figure(stack_fbd_svg(result),
-               caption="Free-body diagram of the stack. Red arrows are the applied story forces F; dashed lines are "
-                       "the story cuts; green arrows are the base reactions of story 1: shear V, and the chord "
-                       "tension (T) and compression (C) couple that resists overturning. Each story is cut at its "
+               caption="Free-body diagram of the stack. Each panel is filled by the governing demand/capacity ratio "
+                       "of that story, to the scale in the key. Red arrows are the applied story forces F; dashed "
+                       "lines are the story cuts; green arrows are the base reactions of story 1: shear V, and the "
+                       "chord tension (T) and compression (C) couple that resists overturning. Each story is cut at its "
                        "base: the forces above the cut give the story shear V = ΣF and the overturning moment "
                        "M_OT = ΣF·(H − H_base), resisted by the couple C_E = M_OT / d less the "
                        "dead-load resisting moment M_R."),

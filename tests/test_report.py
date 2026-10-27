@@ -16,7 +16,10 @@ from design.engine import run_design
 from design.result import OverallStatus
 from design.trace import CheckStatus
 from report import build_document, build_markdown, build_report
-from report.calcs import CATEGORY_ORDER
+from pathlib import Path
+
+from report.calcs import CATEGORY_ORDER, check_name
+from report.figures import AMBER, GREEN, GREY, ORANGE, RED, _rgb, dcr_color, stack_fbd_svg
 from report.model import Figure, Paragraph, StepTable, Table
 from report.numfmt import snum
 from report.refs import citation_for, parse_citation
@@ -75,13 +78,20 @@ def test_every_check_appears_in_the_summary_without_its_story_suffix(result, htm
     assert "Sheathing shear, story" not in md
 
 
-def test_summary_names_the_governing_check_without_story_or_id(result, html, md):
-    check = result.check(result.governing_check)
-    short = check.name.split(", story")[0]
-    assert f"Governing check: {short} in story {result.governing_story}" in md
-    assert f"DCR = {result.max_dcr:.2f}" in md
-    assert result.governing_check not in md.split("## Statics")[0]  # no check id in the summary prose
-    assert "governing" in html  # governing row is marked
+def test_summary_has_no_overall_governing_line(result, md):
+    summary = md.split("## Summary of results")[1].split("## Equations")[0]
+    assert "Overall result: PASS." in summary
+    assert "Governing check:" not in summary  # the per-story roll-up and the bold rows carry this
+    assert result.governing_check not in summary
+
+
+def test_each_storys_governing_check_is_bold(result):
+    t = _all_checks(result)
+    bold = {row[1] for row, cls in zip(t.rows, t.row_classes) if "governing" in cls}
+    expected = {check_name(result.check(s.governing_id)) for s in result.stories if s.governing_id}
+    assert bold == expected
+    marked = sum(1 for cls in t.row_classes if "governing" in cls)
+    assert marked == len(result.stories)  # one per story, not one for the whole stack
 
 
 def test_dcr_values_match_the_engine(result):
@@ -496,3 +506,69 @@ def test_a_statics_step_keeps_any_code_reference(result):
     c = citation_for(m_r)
     assert c.code and "SDPWS" in c.code[0]
     assert c.example == ()
+
+
+# --- demand/capacity colour scale -------------------------------------------------------------
+
+
+def test_dcr_colour_bands_match_the_requested_scale():
+    assert dcr_color(0.50)[0] == GREEN
+    assert dcr_color(0.79)[0] == GREEN
+    assert dcr_color(0.80)[0] == GREEN  # the band edge is still green
+    assert dcr_color(0.85)[0] == AMBER
+    assert dcr_color(0.90)[0] == ORANGE
+    assert dcr_color(1.00)[0] == RED
+    assert dcr_color(2.50)[0] == RED
+    assert dcr_color(None)[0] == GREY
+
+
+def test_dcr_colour_varies_within_a_band():
+    """0.81 still reads green, 0.89 reads orange."""
+    c81, c89 = dcr_color(0.81)[0], dcr_color(0.89)[0]
+    assert c81 != c89
+    assert _rgb(c81)[1] > _rgb(c89)[1]  # 0.81 keeps more green; 0.89 has shifted towards orange
+    assert dcr_color(0.86)[0] not in (AMBER, ORANGE)  # a blend, not a flat band
+
+
+def test_dcr_colour_is_monotonic_and_always_a_valid_hex():
+    greens = []
+    for i in range(0, 130):
+        fill, stroke = dcr_color(i / 100)
+        for c in (fill, stroke):
+            assert re.fullmatch(r"#[0-9A-F]{6}", c), c
+        greens.append(_rgb(fill)[1])
+    # The app's red is a pastel pink, so the blue channel is not monotonic; green is.
+    assert greens == sorted(greens, reverse=True)  # never greener as D:C rises
+
+
+def test_dcr_colours_come_from_the_app_palette():
+    """The report and the screen share the stack-graphic palette (src/ui/graphic.py)."""
+    app = Path(__file__).resolve().parents[1] / "src" / "ui" / "graphic.py"
+    text = app.read_text()
+    for shared in (GREEN, AMBER, RED, GREY):
+        assert shared in text, shared
+    assert ORANGE not in text  # the one addition: the screen has no orange band
+
+
+def test_figure_labels_each_story_with_its_governing_dcr(result):
+    svg = stack_fbd_svg(result)
+    for story in result.stories:
+        assert f"Story {story.story} – D:C = {story.max_dcr:.2f}" in svg
+    assert "Story 1<" not in svg  # no bare story label left
+
+
+def test_figure_fills_each_story_with_its_dcr_colour(result):
+    svg = stack_fbd_svg(result)
+    for story in result.stories:
+        fill, stroke = dcr_color(story.max_dcr)
+        assert f'fill="{fill}" stroke="{stroke}"' in svg, story.story
+    assert 'id="dcrScale"' in svg  # legend explaining the scale
+
+
+def test_figure_greys_a_story_that_needs_input():
+    r = _needs_input_result()
+    svg = stack_fbd_svg(r)
+    needs = [s for s in r.stories if s.max_dcr is None]
+    if needs:
+        assert f'fill="{GREY}"' in svg
+        assert "needs input" in svg

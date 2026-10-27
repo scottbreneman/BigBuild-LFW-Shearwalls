@@ -199,11 +199,6 @@ def _summary(result: DesignResult) -> Section:
         blocks.append(Table(("Field", "Problem"), tuple((e.field, e.message) for e in result.input_errors)))
         return Section("summary", "Summary of results", tuple(blocks))
 
-    if result.governing_check:
-        blocks.append(Paragraph(
-            f"Governing check: {check_name(result.check(result.governing_check))} in story "
-            f"{result.governing_story}, DCR = {dcr(result.max_dcr)} "
-            "(demand / capacity; a value above 1.00 fails)."))
     if result.needs_input:
         blocks.append(Paragraph(
             f"{len(result.needs_input)} check(s) could not run until an engineer settles the decision named "
@@ -219,6 +214,7 @@ def _summary(result: DesignResult) -> Section:
         align_right=(2,),
     ))
 
+    governing = {s.governing_id for s in stories if s.governing_id}  # the governing check of each story
     checks, bands = [], []
     for n, story in enumerate(stories):
         for c in ordered_checks(story.checks):
@@ -227,9 +223,9 @@ def _summary(result: DesignResult) -> Section:
     blocks.append(Table(
         ("Story", "Check", "Demand", "Capacity", "DCR", "Status", "Note"),
         tuple(_check_row(c) for c in checks),
-        caption="All checks, grouped by story. DCR = demand / capacity. The governing check is in bold; "
-                "a failing or incomplete check keeps its own colour through the story banding.",
-        row_classes=tuple(f"{band} {_row_class(c, result.governing_check)}".strip()
+        caption="All checks, grouped by story. DCR = demand / capacity. The governing check of each story is "
+                "in bold; a failing or incomplete check keeps its own colour through the story banding.",
+        row_classes=tuple(f"{band} {_row_class(c, governing)}".strip()
                           for c, band in zip(checks, bands)),
         align_right=(2, 3, 4),
         span_col=0,
@@ -252,9 +248,9 @@ def _check_row(c: CheckResult) -> tuple[str, ...]:
     )
 
 
-def _row_class(c: CheckResult, governing_id: str | None) -> str:
+def _row_class(c: CheckResult, governing_ids: set[str]) -> str:
     cls = _CHECK_STATUS_CLASS[c.status] if c.status in (CheckStatus.FAIL, CheckStatus.NEEDS_INPUT) else ""
-    return f"{cls} governing".strip() if c.id == governing_id else cls
+    return f"{cls} governing".strip() if c.id in governing_ids else cls
 
 
 # --- notes -------------------------------------------------------------------

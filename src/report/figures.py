@@ -17,6 +17,42 @@ _FORCE = "#b00020"
 _REACT = "#0b6b3a"
 _DIM = "#666666"
 
+# Demand/capacity colour scale. The fills and strokes are the stack-graphic palette from
+# src/ui/graphic.py so the report and the screen read the same, with one addition: the screen
+# has no orange band, so the orange below sits between its amber and red.
+# Colour varies continuously between the stops, so 0.81 still reads green and 0.89 orange.
+GREEN, AMBER, ORANGE, RED, GREY = "#DFF3E4", "#FFF0C2", "#FBDCC0", "#F8CFCF", "#E4E7EB"
+STROKE = {GREEN: "#3A8A55", AMBER: "#B8860B", ORANGE: "#C2740F", RED: "#B03030", GREY: "#8A94A0"}
+_STOPS = ((0.80, GREEN), (0.85, AMBER), (0.90, ORANGE), (1.00, RED))
+
+
+def _rgb(h: str) -> tuple[int, int, int]:
+    return int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)
+
+
+def _mix(a: str, b: str, t: float) -> str:
+    ra, rb = _rgb(a), _rgb(b)
+    return "#" + "".join(f"{round(ra[i] + (rb[i] - ra[i]) * t):02X}" for i in range(3))
+
+
+def dcr_color(dcr: float | None) -> tuple[str, str]:
+    """(fill, stroke) for a demand/capacity ratio.
+
+    Green below 0.80, then green to amber to orange across 0.80-0.90, orange to red across
+    0.90-1.00, and red at 1.00 and above. ``None`` (a check that needs engineer input) is grey.
+    """
+    if dcr is None:
+        return GREY, STROKE[GREY]
+    if dcr <= _STOPS[0][0]:
+        return GREEN, STROKE[GREEN]
+    if dcr >= _STOPS[-1][0]:
+        return RED, STROKE[RED]
+    for (d0, c0), (d1, c1) in zip(_STOPS, _STOPS[1:]):
+        if d0 <= dcr <= d1:
+            t = (dcr - d0) / (d1 - d0)
+            return _mix(c0, c1, t), _mix(STROKE[c0], STROKE[c1], t)
+    return GREY, STROKE[GREY]  # unreachable
+
 
 def _label(x: float, y: float, *parts, anchor: str = "start", size: float = 12, bold: bool = False,
            fill: str = _INK) -> str:
@@ -59,7 +95,7 @@ def stack_fbd_svg(result: DesignResult) -> str:
     wall_w = b * scale
     x0, top = 200.0, 56.0
     y_base = top + total_h * scale
-    width, height = 900, y_base + 134
+    width, height = 900, y_base + 186
 
     elev = [0.0]  # elev[j] = elevation of the top of story j above the base of story 1
     for h in heights:
@@ -84,13 +120,17 @@ def stack_fbd_svg(result: DesignResult) -> str:
                         "named at the right.", size=11, fill=_DIM),
     ]
 
-    # Wall panels, one per story.
+    # Wall panels, one per story, filled by the story's governing demand/capacity ratio.
     for j in range(1, n + 1):
         y_top, y_bot = y(elev[j]), y(elev[j - 1])
+        story = result.stories[j - 1] if j <= len(result.stories) else None
+        d = story.max_dcr if story else None
+        fill, stroke = dcr_color(d)
         parts.append(f'<rect x="{x0:.1f}" y="{y_top:.1f}" width="{wall_w:.1f}" height="{y_bot - y_top:.1f}" '
-                     f'fill="#f3f6f9" stroke="#333" stroke-width="1.5"/>')
-        parts.append(_label(x0 + wall_w / 2, (y_top + y_bot) / 2 + 4, f"Story {j}", anchor="middle",
-                            size=13, fill=_DIM))
+                     f'fill="{fill}" stroke="{stroke}" stroke-width="1.5"/>')
+        text = f"Story {j} – D:C = {d:.2f}" if d is not None else f"Story {j} – needs input"
+        parts.append(_label(x0 + wall_w / 2, (y_top + y_bot) / 2 + 4, text, anchor="middle",
+                            size=13, bold=True, fill=_INK))
 
     # Applied story forces at the top of each story, with the elevation dimension on the right.
     x_dim = x0 + wall_w + 24
@@ -149,6 +189,30 @@ def stack_fbd_svg(result: DesignResult) -> str:
                  f'stroke-width="1" marker-start="url(#arrD)" marker-end="url(#arrD)"/>')
     parts.append(_label(x0 + wall_w / 2, yd + 16, f"b = {b:,.1f} ft", anchor="middle", size=12, fill=_DIM))
 
+    parts.append(_legend(24.0, y_base + 142))
     parts.append("</svg>")
     return "\n".join(parts)
+
+
+def _legend(x: float, y: float, w: float = 250.0) -> str:
+    """Colour-scale key: a gradient bar from D:C 0.70 to 1.10 with ticks at the band edges."""
+    lo, hi = 0.70, 1.10
+
+    def at(d: float) -> float:
+        return (d - lo) / (hi - lo)
+
+    stops = "".join(
+        f'<stop offset="{at(d) * 100:.1f}%" stop-color="{c}"/>'
+        for d, c in ((lo, GREEN), (0.80, GREEN), (0.85, AMBER), (0.90, ORANGE), (1.00, RED), (hi, RED)))
+    out = [f'<defs><linearGradient id="dcrScale" x1="0" x2="1">{stops}</linearGradient></defs>',
+           _label(x, y - 6, "Fill colour: governing D:C of the story", size=10.5, fill=_DIM),
+           f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="11" fill="url(#dcrScale)" '
+           f'stroke="{_DIM}" stroke-width="0.6"/>']
+    for d in (0.80, 0.90, 1.00):
+        tx = x + at(d) * w
+        out.append(f'<line x1="{tx:.1f}" y1="{y:.1f}" x2="{tx:.1f}" y2="{y + 14:.1f}" stroke="{_DIM}" '
+                   f'stroke-width="0.8"/>')
+        out.append(_label(tx, y + 25, f"{d:.2f}", anchor="middle", size=9.5, fill=_DIM))
+    out.append(_label(x + w + 8, y + 10, "1.00 and above: over capacity", size=9.5, fill=_DIM))
+    return "\n".join(out)
 
