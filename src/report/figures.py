@@ -17,41 +17,16 @@ _FORCE = "#b00020"
 _REACT = "#0b6b3a"
 _DIM = "#666666"
 
-# Demand/capacity colour scale. The fills and strokes are the stack-graphic palette from
-# src/ui/graphic.py so the report and the screen read the same, with one addition: the screen
-# has no orange band, so the orange below sits between its amber and red.
-# Colour varies continuously between the stops, so 0.81 still reads green and 0.89 orange.
-GREEN, AMBER, ORANGE, RED, GREY = "#DFF3E4", "#FFF0C2", "#FBDCC0", "#F8CFCF", "#E4E7EB"
-STROKE = {GREEN: "#3A8A55", AMBER: "#B8860B", ORANGE: "#C2740F", RED: "#B03030", GREY: "#8A94A0"}
-_STOPS = ((0.80, GREEN), (0.85, AMBER), (0.90, ORANGE), (1.00, RED))
+# Demand/capacity colour scale. The report defers to the stack graphic in the Streamlit app
+# (src/ui/graphic.py) so the screen and the report colour the same design the same way:
+# green at or below 0.90, amber 0.90 to 1.00, red above 1.00, grey where a check needs input.
+from ui.graphic import AMBER, GREEN, GREY, RED, STROKE, dcr_colour  # noqa: E402
 
 
-def _rgb(h: str) -> tuple[int, int, int]:
-    return int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16)
-
-
-def _mix(a: str, b: str, t: float) -> str:
-    ra, rb = _rgb(a), _rgb(b)
-    return "#" + "".join(f"{round(ra[i] + (rb[i] - ra[i]) * t):02X}" for i in range(3))
-
-
-def dcr_color(dcr: float | None) -> tuple[str, str]:
-    """(fill, stroke) for a demand/capacity ratio.
-
-    Green below 0.80, then green to amber to orange across 0.80-0.90, orange to red across
-    0.90-1.00, and red at 1.00 and above. ``None`` (a check that needs engineer input) is grey.
-    """
-    if dcr is None:
-        return GREY, STROKE[GREY]
-    if dcr <= _STOPS[0][0]:
-        return GREEN, STROKE[GREEN]
-    if dcr >= _STOPS[-1][0]:
-        return RED, STROKE[RED]
-    for (d0, c0), (d1, c1) in zip(_STOPS, _STOPS[1:]):
-        if d0 <= dcr <= d1:
-            t = (dcr - d0) / (d1 - d0)
-            return _mix(c0, c1, t), _mix(STROKE[c0], STROKE[c1], t)
-    return GREY, STROKE[GREY]  # unreachable
+def dcr_color(dcr: float | None, incomplete: bool = False) -> tuple[str, str]:
+    """(fill, stroke) for a demand/capacity ratio, on the app's scale."""
+    fill = dcr_colour(dcr, incomplete)
+    return fill, STROKE[fill]
 
 
 def _label(x: float, y: float, *parts, anchor: str = "start", size: float = 12, bold: bool = False,
@@ -95,7 +70,7 @@ def stack_fbd_svg(result: DesignResult) -> str:
     wall_w = b * scale
     x0, top = 200.0, 56.0
     y_base = top + total_h * scale
-    width, height = 900, y_base + 186
+    width, height = 900, y_base + 172
 
     elev = [0.0]  # elev[j] = elevation of the top of story j above the base of story 1
     for h in heights:
@@ -194,25 +169,15 @@ def stack_fbd_svg(result: DesignResult) -> str:
     return "\n".join(parts)
 
 
-def _legend(x: float, y: float, w: float = 250.0) -> str:
-    """Colour-scale key: a gradient bar from D:C 0.70 to 1.10 with ticks at the band edges."""
-    lo, hi = 0.70, 1.10
-
-    def at(d: float) -> float:
-        return (d - lo) / (hi - lo)
-
-    stops = "".join(
-        f'<stop offset="{at(d) * 100:.1f}%" stop-color="{c}"/>'
-        for d, c in ((lo, GREEN), (0.80, GREEN), (0.85, AMBER), (0.90, ORANGE), (1.00, RED), (hi, RED)))
-    out = [f'<defs><linearGradient id="dcrScale" x1="0" x2="1">{stops}</linearGradient></defs>',
-           _label(x, y - 6, "Fill colour: governing D:C of the story", size=10.5, fill=_DIM),
-           f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="11" fill="url(#dcrScale)" '
-           f'stroke="{_DIM}" stroke-width="0.6"/>']
-    for d in (0.80, 0.90, 1.00):
-        tx = x + at(d) * w
-        out.append(f'<line x1="{tx:.1f}" y1="{y:.1f}" x2="{tx:.1f}" y2="{y + 14:.1f}" stroke="{_DIM}" '
-                   f'stroke-width="0.8"/>')
-        out.append(_label(tx, y + 25, f"{d:.2f}", anchor="middle", size=9.5, fill=_DIM))
-    out.append(_label(x + w + 8, y + 10, "1.00 and above: over capacity", size=9.5, fill=_DIM))
+def _legend(x: float, y: float) -> str:
+    """Colour key, matching the app's caption: green <= 0.90, amber 0.90 to 1.00, red above 1.00."""
+    bands = ((GREEN, "\u2264 0.90"), (AMBER, "0.90 to 1.00"), (RED, "above 1.00"), (GREY, "needs input"))
+    out = [_label(x, y - 6, "Fill colour: governing D:C of the story", size=10.5, fill=_DIM)]
+    cx = x
+    for fill, text in bands:
+        out.append(f'<rect x="{cx:.1f}" y="{y:.1f}" width="16" height="11" fill="{fill}" '
+                   f'stroke="{STROKE[fill]}" stroke-width="0.6"/>')
+        out.append(_label(cx + 21, y + 9.5, text, size=10, fill=_DIM))
+        cx += 26 + len(text) * 5.6
     return "\n".join(out)
 

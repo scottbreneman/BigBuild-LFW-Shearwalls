@@ -43,8 +43,8 @@ def inum(x: float) -> str:
 
 
 def ratio(x: float) -> str:
-    """A drift ratio such as 0.0025 shown as '1/400 (0.0025)'."""
-    return f"1/{1 / x:,.0f} ({x:.4f})" if x > 0 else str(x)
+    """A drift ratio such as 0.0025 shown as the app's denominator form, 'h / 400'."""
+    return f"h / {1 / x:,.0f}" if x > 0 else str(x)
 
 
 def with_unit(x: float | None, unit: str) -> str:

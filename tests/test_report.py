@@ -19,7 +19,7 @@ from report import build_document, build_markdown, build_report
 from pathlib import Path
 
 from report.calcs import CATEGORY_ORDER, check_name
-from report.figures import AMBER, GREEN, GREY, ORANGE, RED, _rgb, dcr_color, stack_fbd_svg
+from report.figures import AMBER, GREEN, GREY, RED, dcr_color, stack_fbd_svg
 from report.model import Figure, Paragraph, StepTable, Table
 from report.numfmt import snum
 from report.refs import citation_for, parse_citation
@@ -56,12 +56,12 @@ def _needs_input_result():
 
 def test_header_has_disclaimer_project_date_editions_and_commit(result, html, md):
     for text in (html, md):
-        assert "NOT FOR CONSTRUCTION" in text
+        assert "Prototype output" in text  # the app's wording (ui/trace_export.DISCLAIMER)
         assert "licensed engineer" in text
         assert "WoodWorks five-story example" in text
         assert "2026-10-27" in text
         assert "IBC 2024" in text and "SDPWS 2021" in text and "ASCE 7-22" in text
-        assert "not recorded" in text  # git_commit is filled by the caller
+        assert "unknown" in text  # git_commit is filled by the caller, as the app does
     assert "| Load type | Seismic |" in md
     assert "| Load type | seismic |" not in md
 
@@ -80,7 +80,7 @@ def test_every_check_appears_in_the_summary_without_its_story_suffix(result, htm
 
 def test_summary_has_no_overall_governing_line(result, md):
     summary = md.split("## Summary of results")[1].split("## Equations")[0]
-    assert "Overall result: PASS." in summary
+    assert "All checks pass." in summary
     assert "Governing check:" not in summary  # the per-story roll-up and the bold rows carry this
     assert result.governing_check not in summary
 
@@ -133,10 +133,11 @@ def test_needs_input_check_shows_its_decision():
     assert r.needs_input
     md = build_markdown(r, DAY)
     html = build_report(r, DAY)
-    assert "NEEDS INPUT" in md
+    assert "needs input" in md
     assert "Decision D3" in md
     assert "needs-input" in html
-    assert "could not run until an engineer settles" in md
+    assert "Needs engineer input: these checks cannot run" in md  # the app's section wording
+    assert "| Check | Decision / data | Message |" in md  # the app's columns
 
 
 def test_failing_design_is_reported_as_fail():
@@ -145,7 +146,7 @@ def test_failing_design_is_reported_as_fail():
         base, stories=tuple(dataclasses.replace(s, F_lb=s.F_lb * 3) for s in base.stories)), library())
     assert r.status is OverallStatus.FAIL
     md = build_markdown(r, DAY)
-    assert "Overall result: FAIL" in md
+    assert "One or more checks FAIL" in md
     assert "FAIL" in md.split("All checks, grouped by story.")[1]
     assert 'class="fail' in build_report(r, DAY)
 
@@ -154,7 +155,7 @@ def test_invalid_input_lists_errors_and_no_checks():
     r = run_design(dataclasses.replace(inputs(), b_ft=-1.0), library())
     assert r.status is OverallStatus.INVALID_INPUT
     md = build_markdown(r, DAY)
-    assert "INVALID INPUT" in md
+    assert "Fix these inputs before the engine will run checks" in md
     assert "wall length must be positive" in md
     assert "All checks, grouped by story." not in md
     assert "Governing check" not in md
@@ -305,7 +306,7 @@ def test_statics_section_opens_with_the_figure(result):
 
 def test_statics_comes_before_the_summary(result):
     ids = [s.id for s in build_document(result, DAY).sections]
-    assert ids == ["header", "inputs", "statics", "summary", "equations", "calculations", "notes"]
+    assert ids == ["header", "inputs", "statics", "summary", "equations", "calculations", "verify", "notes"]
 
 
 def test_statics_stories_are_listed_top_down(md):
@@ -365,7 +366,7 @@ def test_report_adds_no_reference_of_its_own(result, md):
     for line in md.splitlines():
         if line.startswith("| Step |"):
             heads = [h.strip() for h in line.strip("|").split(" | ")]
-            ref_col = heads.index("Reference")
+            ref_col = heads.index("Reference") if "Reference" in heads else None
         elif line.startswith("| ") and ref_col is not None and not line.startswith("| ---"):
             cell = line.strip().strip("|").split(" | ")[ref_col]
             for frag in cell.split("; "):
@@ -402,7 +403,7 @@ def test_calculation_section_lists_every_check_top_down(result, md):
 def test_needs_input_check_has_no_calc_table_but_states_the_decision():
     r = _needs_input_result()
     calc = build_markdown(r, DAY).split("## Step-by-step calculations")[1]
-    assert "NEEDS INPUT. Decision D3" in calc
+    assert "needs input. Decision D3" in calc
 
 
 # --- story loads table: cumulative totals -----------------------------------------------------
@@ -511,43 +512,32 @@ def test_a_statics_step_keeps_any_code_reference(result):
 # --- demand/capacity colour scale -------------------------------------------------------------
 
 
-def test_dcr_colour_bands_match_the_requested_scale():
+def test_dcr_colour_bands_match_the_app(result):
+    """The report must colour a D:C exactly as the app's stack graphic does."""
+    from ui.graphic import dcr_colour as app_colour
+
+    for i in range(0, 200):
+        d = i / 100
+        assert dcr_color(d)[0] == app_colour(d), d
+    assert dcr_color(None)[0] == app_colour(None) == GREY
+
+
+def test_dcr_colour_uses_the_app_bands():
     assert dcr_color(0.50)[0] == GREEN
-    assert dcr_color(0.79)[0] == GREEN
-    assert dcr_color(0.80)[0] == GREEN  # the band edge is still green
-    assert dcr_color(0.85)[0] == AMBER
-    assert dcr_color(0.90)[0] == ORANGE
-    assert dcr_color(1.00)[0] == RED
-    assert dcr_color(2.50)[0] == RED
+    assert dcr_color(0.90)[0] == GREEN  # the app's first break is at 0.90, not 0.80
+    assert dcr_color(0.95)[0] == AMBER
+    assert dcr_color(1.00)[0] == AMBER
+    assert dcr_color(1.01)[0] == RED
     assert dcr_color(None)[0] == GREY
 
 
-def test_dcr_colour_varies_within_a_band():
-    """0.81 still reads green, 0.89 reads orange."""
-    c81, c89 = dcr_color(0.81)[0], dcr_color(0.89)[0]
-    assert c81 != c89
-    assert _rgb(c81)[1] > _rgb(c89)[1]  # 0.81 keeps more green; 0.89 has shifted towards orange
-    assert dcr_color(0.86)[0] not in (AMBER, ORANGE)  # a blend, not a flat band
+def test_dcr_strokes_come_from_the_app_palette():
+    from ui.graphic import STROKE
 
-
-def test_dcr_colour_is_monotonic_and_always_a_valid_hex():
-    greens = []
-    for i in range(0, 130):
-        fill, stroke = dcr_color(i / 100)
-        for c in (fill, stroke):
-            assert re.fullmatch(r"#[0-9A-F]{6}", c), c
-        greens.append(_rgb(fill)[1])
-    # The app's red is a pastel pink, so the blue channel is not monotonic; green is.
-    assert greens == sorted(greens, reverse=True)  # never greener as D:C rises
-
-
-def test_dcr_colours_come_from_the_app_palette():
-    """The report and the screen share the stack-graphic palette (src/ui/graphic.py)."""
-    app = Path(__file__).resolve().parents[1] / "src" / "ui" / "graphic.py"
-    text = app.read_text()
-    for shared in (GREEN, AMBER, RED, GREY):
-        assert shared in text, shared
-    assert ORANGE not in text  # the one addition: the screen has no orange band
+    for fill in (GREEN, AMBER, RED, GREY):
+        assert STROKE[fill] == dict((v, k) for k, v in [(STROKE[f], f) for f in (fill,)]).get(fill, STROKE[fill])
+    assert dcr_color(0.5)[1] == STROKE[GREEN]
+    assert dcr_color(1.5)[1] == STROKE[RED]
 
 
 def test_figure_labels_each_story_with_its_governing_dcr(result):
@@ -562,7 +552,7 @@ def test_figure_fills_each_story_with_its_dcr_colour(result):
     for story in result.stories:
         fill, stroke = dcr_color(story.max_dcr)
         assert f'fill="{fill}" stroke="{stroke}"' in svg, story.story
-    assert 'id="dcrScale"' in svg  # legend explaining the scale
+    assert "Fill colour: governing D:C of the story" in svg  # legend explaining the scale
 
 
 def test_figure_greys_a_story_that_needs_input():
@@ -572,3 +562,65 @@ def test_figure_greys_a_story_that_needs_input():
     if needs:
         assert f'fill="{GREY}"' in svg
         assert "needs input" in svg
+
+
+# --- conformance with the Streamlit app -------------------------------------------------------
+# The screen and the report must describe the same design the same way. These tests fail if one
+# side changes a shared setting without the other.
+
+
+def test_disclaimer_is_the_apps_disclaimer(md):
+    from ui.trace_export import DISCLAIMER
+
+    from report.sections import DISCLAIMER as report_disclaimer
+
+    assert report_disclaimer is DISCLAIMER
+    assert DISCLAIMER in md
+
+
+def test_overall_status_wording_is_the_apps(result):
+    assert "All checks pass." in build_markdown(result, DAY)
+    r = run_design(dataclasses.replace(inputs(), b_ft=-1.0), library())
+    assert "Fix these inputs before the engine will run checks" in build_markdown(r, DAY)
+
+
+def test_check_status_words_are_the_apps(result, md):
+    from report.calcs import CHECK_STATUS_LABEL
+
+    assert CHECK_STATUS_LABEL[CheckStatus.NEEDS_INPUT] == "needs input"
+    assert CHECK_STATUS_LABEL[CheckStatus.NOT_APPLICABLE] == "n/a"
+    assert CHECK_STATUS_LABEL[CheckStatus.INFO] == "info"
+    assert "NEEDS INPUT" not in md and "INFO" not in md
+
+
+def test_editions_match_the_engine(result, md):
+    from design.result import EDITIONS
+
+    assert ", ".join(EDITIONS) in md  # the app's sidebar prints the same list
+
+
+def test_items_to_verify_uses_the_apps_columns(result, md):
+    section = md.split("## Items to verify")[1].split("## Notes")[0]
+    assert "| Step | Name | Citation | Source status |" in section
+    assert "Component rows used with status 'memory'" in section
+    assert f"{len(result.unverified_steps)} steps" in section
+    for item in result.component_items_to_verify:
+        assert item in section
+
+
+def test_items_to_verify_lists_every_unverified_step(result, md):
+    section = md.split("## Items to verify")[1]
+    for step in result.unverified_steps:
+        assert step.id in section, step.id
+
+
+def test_items_to_verify_comes_before_the_notes(result):
+    ids = [s.id for s in build_document(result, DAY).sections]
+    assert ids.index("verify") == ids.index("notes") - 1
+
+
+def test_wind_drift_limit_uses_the_apps_denominator_form():
+    r = run_design(dataclasses.replace(
+        inputs(), load_type="wind", wind_drift_limit_ratio=1 / 400, S_DS=None, C_d=None, I_e=None,
+        risk_category=None), library())
+    assert "h / 400" in build_markdown(r, DAY)

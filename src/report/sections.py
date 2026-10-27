@@ -17,23 +17,16 @@ from design.inputs import GenericHoldDown, RodSystem, StoryInput
 from design.result import DesignResult, OverallStatus
 from design.trace import CheckResult, CheckStatus
 
+from .calcs import CHECK_STATUS_LABEL as _CHECK_STATUS_LABEL
 from .calcs import build_calculations, build_equations, check_name, ordered_checks
-from .model import Document, Paragraph, Section, Table, story_order
+from .model import Document, Paragraph, Section, Subheading, Table, story_order
 from .numfmt import dcr, inum, ratio, snum, with_unit
 from .statics import build_statics
 
-DISCLAIMER = (
-    "PROTOTYPE - NOT FOR CONSTRUCTION. Results from this hackathon prototype have not been validated "
-    "and need review by a licensed engineer before any project use."
-)
+# Wording, status labels and the demand/capacity scale follow the Streamlit app, so the screen and
+# the report say the same thing about the same design.
+from ui.trace_export import DISCLAIMER  # noqa: E402
 
-_CHECK_STATUS_LABEL = {
-    CheckStatus.PASS: "PASS",
-    CheckStatus.FAIL: "FAIL",
-    CheckStatus.NEEDS_INPUT: "NEEDS INPUT",
-    CheckStatus.INFO: "INFO",
-    CheckStatus.NOT_APPLICABLE: "N/A",
-}
 _CHECK_STATUS_CLASS = {
     CheckStatus.PASS: "pass",
     CheckStatus.FAIL: "fail",
@@ -41,11 +34,15 @@ _CHECK_STATUS_CLASS = {
     CheckStatus.INFO: "info",
     CheckStatus.NOT_APPLICABLE: "info",
 }
-_OVERALL_LABEL = {
-    OverallStatus.PASS: "PASS",
-    OverallStatus.FAIL: "FAIL",
-    OverallStatus.INCOMPLETE: "INCOMPLETE (a check needs engineer input)",
-    OverallStatus.INVALID_INPUT: "INVALID INPUT (no checks were run)",
+_OVERALL_LABEL = {  # the app's result banners (src/ui/app.py)
+    OverallStatus.PASS: "All checks pass",
+    OverallStatus.FAIL: "One or more checks FAIL",
+    OverallStatus.INCOMPLETE: "Incomplete: some checks need engineer input or component data",
+    OverallStatus.INVALID_INPUT: "Fix these inputs before the engine will run checks",
+}
+_STORY_LABEL = {  # short form for the per-story roll-up
+    OverallStatus.PASS: "pass", OverallStatus.FAIL: "FAIL",
+    OverallStatus.INCOMPLETE: "incomplete", OverallStatus.INVALID_INPUT: "invalid input",
 }
 _OVERALL_CLASS = {
     OverallStatus.PASS: "pass",
@@ -65,7 +62,7 @@ def build_document(result: DesignResult, generated: date | None = None) -> Docum
         sections.append(_summary(result))
     else:
         sections += [build_statics(result), _summary(result), build_equations(result),
-                     build_calculations(result), _notes(result)]
+                     build_calculations(result), _items_to_verify(result), _notes(result)]
     return Document(title=title, banner=DISCLAIMER, sections=tuple(sections))
 
 
@@ -84,7 +81,7 @@ def _header(result: DesignResult, generated: date) -> Section:
         ("Load type", _cap(result.load_type)),
         ("Load level", "ASD (allowable stress design)"),
         ("Editions", ", ".join(result.editions)),
-        ("App git commit", result.git_commit or "not recorded"),
+        ("App git commit", result.git_commit or "unknown"),
     )
     return Section("header", "Report information", (Table(("Item", "Value"), rows),))
 
@@ -103,7 +100,7 @@ def _inputs(result: DesignResult) -> Section:
         ("Risk category", inp.risk_category, str, ""),
         ("Seismic design category", inp.sdc, str, ""),
         ("End post width for default lever arm, d_post", inp.d_post_in, inum, "in"),
-        ("Wind drift limit, story drift / story height", inp.wind_drift_limit_ratio, ratio, ""),
+        ("Wind drift limit, h / ___", inp.wind_drift_limit_ratio, ratio, ""),
     )
     for label, value, fmt_value, unit in optional:
         if value is not None:  # only inputs the user supplied; seismic and wind need different sets
@@ -192,23 +189,27 @@ def _tiedown(s: StoryInput) -> str:
 
 def _summary(result: DesignResult) -> Section:
     status = result.status
-    blocks: list = [Paragraph(f"Overall result: {_OVERALL_LABEL[status]}.")]
+    blocks: list = [Paragraph(f"{_OVERALL_LABEL[status]}.")]
 
     if status is OverallStatus.INVALID_INPUT:
-        blocks.append(Paragraph("The inputs failed validation, so no checks were run. Fix these and run again."))
+        blocks.append(Paragraph("No checks were run."))
         blocks.append(Table(("Field", "Problem"), tuple((e.field, e.message) for e in result.input_errors)))
         return Section("summary", "Summary of results", tuple(blocks))
 
     if result.needs_input:
-        blocks.append(Paragraph(
-            f"{len(result.needs_input)} check(s) could not run until an engineer settles the decision named "
-            "in the Note column."))
+        blocks.append(Paragraph("Needs engineer input: these checks cannot run until the decision or the "
+                                "component data below is settled."))
+        blocks.append(Table(
+            ("Check", "Decision / data", "Message"),
+            tuple((n.check_id, n.decision, n.message) for n in result.needs_input),
+            row_classes=tuple("needs-input" for _ in result.needs_input),
+        ))
 
     stories = [result.stories[i - 1] for i in story_order(len(result.stories))]
     blocks.append(Table(
         ("Story", "Governing check", "Max DCR", "Status"),
         tuple((str(s.story), _check_label(result, s.governing_id), dcr(s.max_dcr),
-               _OVERALL_LABEL[s.status].split(" (")[0]) for s in stories),
+               _STORY_LABEL[s.status]) for s in stories),
         caption="Controlling check in each story.",
         row_classes=tuple(_OVERALL_CLASS[s.status] for s in stories),
         align_right=(2,),
@@ -251,6 +252,43 @@ def _check_row(c: CheckResult) -> tuple[str, ...]:
 def _row_class(c: CheckResult, governing_ids: set[str]) -> str:
     cls = _CHECK_STATUS_CLASS[c.status] if c.status in (CheckStatus.FAIL, CheckStatus.NEEDS_INPUT) else ""
     return f"{cls} governing".strip() if c.id in governing_ids else cls
+
+
+# --- items to verify ---------------------------------------------------------
+
+
+def _items_to_verify(result: DesignResult) -> Section:
+    """Every value an engineer still has to close out (docs/spec-io.md §6 item 7).
+
+    Same content as the app's "Items to verify" tab: component rows used at status ``memory``,
+    then the calculation steps whose source is not ``verified``.
+    """
+    blocks: list = [Paragraph(
+        "Every value below carries a source status that is not 'verified'. An engineer reads the cited section, "
+        "then either marks the value verified or corrects it. 'memory' was recalled and not yet checked against "
+        "the source; 'assumption' is a team decision.")]
+
+    blocks.append(Subheading("Component rows used with status 'memory'"))
+    if result.component_items_to_verify:
+        blocks.append(Table(("Component row",), tuple((x,) for x in result.component_items_to_verify)))
+    else:
+        blocks.append(Paragraph("None."))
+
+    blocks.append(Subheading("Calculation steps not verified"))
+    steps = result.unverified_steps
+    if steps:
+        by_status: dict[str, int] = {}
+        for st in steps:
+            by_status[st.status] = by_status.get(st.status, 0) + 1
+        counts = ", ".join(f"{n} {k}" for k, n in sorted(by_status.items()))
+        blocks.append(Paragraph(f"{len(steps)} steps: {counts}."))
+        blocks.append(Table(
+            ("Step", "Name", "Citation", "Source status"),
+            tuple((st.id, st.name, st.citation, st.status) for st in steps),
+        ))
+    else:
+        blocks.append(Paragraph("None."))
+    return Section("verify", "Items to verify", tuple(blocks))
 
 
 # --- notes -------------------------------------------------------------------

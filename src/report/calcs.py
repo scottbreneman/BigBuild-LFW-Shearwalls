@@ -22,9 +22,9 @@ _CATEGORY_TITLE = {
     "plate_bending": "Bearing plate: steel bending capacity",
     "drift": "Story drift",
 }
-_STATUS_TEXT = {
-    CheckStatus.PASS: "PASS", CheckStatus.FAIL: "FAIL", CheckStatus.NEEDS_INPUT: "NEEDS INPUT",
-    CheckStatus.INFO: "INFO", CheckStatus.NOT_APPLICABLE: "N/A",
+CHECK_STATUS_LABEL = {  # the app's words for a check result (src/ui/app.py)
+    CheckStatus.PASS: "pass", CheckStatus.FAIL: "FAIL", CheckStatus.NEEDS_INPUT: "needs input",
+    CheckStatus.INFO: "info", CheckStatus.NOT_APPLICABLE: "n/a",
 }
 
 
@@ -92,7 +92,7 @@ def build_calculations(result: DesignResult) -> Section:
 
 
 def _check_line(check: CheckResult) -> str:
-    head = f"{check_name(check)} ({check.id}): {_STATUS_TEXT[check.status]}"
+    head = f"{check_name(check)} ({check.id}): {CHECK_STATUS_LABEL[check.status]}"
     if check.status is CheckStatus.NEEDS_INPUT:
         return f"{head}. Decision {check.decision}: {check.message}" if check.decision else f"{head}. {check.message}"
     if check.dcr is not None:
