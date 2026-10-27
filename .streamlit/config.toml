@@ -1,0 +1,11 @@
+# Green theme for the Streamlit UI. Run the app from the repo root so this file is picked up.
+[theme]
+base = "light"
+primaryColor = "#15803D"
+backgroundColor = "#F5FAF6"
+secondaryBackgroundColor = "#E8F3EB"
+textColor = "#1E293B"
+font = "sans serif"
+
+[browser]
+gatherUsageStats = false
