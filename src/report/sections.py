@@ -17,9 +17,9 @@ from design.inputs import GenericHoldDown, RodSystem, StoryInput
 from design.result import DesignResult, OverallStatus
 from design.trace import CheckResult, CheckStatus
 
-from .calcs import build_calculations, build_equations
+from .calcs import build_calculations, build_equations, check_name, ordered_checks
 from .model import Document, Paragraph, Section, Table, story_order
-from .numfmt import dcr, inum, num, ratio, with_unit
+from .numfmt import dcr, inum, ratio, snum, with_unit
 from .statics import build_statics
 
 DISCLAIMER = (
@@ -60,9 +60,12 @@ def build_document(result: DesignResult, generated: date | None = None) -> Docum
     generated = generated or date.today()
     name = result.inputs.project_name.strip()
     title = f"Wood shear wall design report - {name}" if name else "Wood shear wall design report"
-    sections = [_header(result, generated), _inputs(result), _summary(result)]
-    if result.status is not OverallStatus.INVALID_INPUT:
-        sections += [build_statics(result), build_equations(result), build_calculations(result), _notes(result)]
+    sections = [_header(result, generated), _inputs(result)]
+    if result.status is OverallStatus.INVALID_INPUT:
+        sections.append(_summary(result))
+    else:
+        sections += [build_statics(result), _summary(result), build_equations(result),
+                     build_calculations(result), _notes(result)]
     return Document(title=title, banner=DISCLAIMER, sections=tuple(sections))
 
 
@@ -110,15 +113,7 @@ def _inputs(result: DesignResult) -> Section:
     general.append(("Rotation carried from stories below", "Yes" if inp.carry_rotation else "No", ""))
 
     order = story_order(len(inp.stories))
-    loads = Table(
-        ("Story", "Height h (ft)", "Story force F (lb)", "Dead w_D (plf)", "Wall w_wall (plf)",
-         "Live w_L (plf)", "Roof live w_Lr (plf)"),
-        tuple((str(i), inum(s.h_ft), inum(s.F_lb), inum(s.w_D_plf), inum(s.w_wall_plf), inum(s.w_L_plf),
-               inum(s.w_Lr_plf)) for i, s in ((i, inp.stories[i - 1]) for i in order)),
-        caption="Story heights and loads. Story 1 is the bottom wall. F is the strength-level force "
-                "applied at the top of the story; w are line loads delivered at the top of the story.",
-        align_right=(1, 2, 3, 4, 5, 6),
-    )
+    loads = _loads_table(result, order)
     walls = Table(
         ("Story", "Wall assembly", "Sides", "Panel", "End posts", "Chord length (ft)", "Lever arm d (ft)",
          "Tie-down"),
@@ -133,6 +128,43 @@ def _inputs(result: DesignResult) -> Section:
         loads,
         walls,
     ))
+
+
+def _loads_table(result: DesignResult, order: list[int]) -> Table:
+    """Story loads, each with the cumulative value at the base of that story.
+
+    The cumulative columns are read from the statics steps, not recomputed here; the elevation H
+    is the running sum of the input story heights.
+    """
+    inp = result.inputs
+    elevation, running = {}, 0.0
+    for i, st in enumerate(inp.stories, start=1):
+        running += st.h_ft
+        elevation[i] = running
+
+    def cum(story: int, key: str) -> str:
+        try:
+            return snum(result.step(f"S{story}.statics.{key}").value)
+        except KeyError:  # no statics steps (invalid input)
+            return "-"
+
+    headers = ("Story", "Height h (ft)", "Elevation H at top (ft)", "Story force F (lb)",
+               "Story shear V = ΣF (lb)", "Overturning M_OT at base (ft-lb)", "Dead w_D (plf)",
+               "Wall w_wall (plf)", "Cumulative dead Σ(w_D + w_wall) (plf)", "Live w_L (plf)",
+               "Cumulative live Σw_L (plf)", "Roof live w_Lr (plf)", "Cumulative roof live Σw_Lr (plf)")
+    rows = []
+    for i in order:
+        st = inp.stories[i - 1]
+        rows.append((str(i), inum(st.h_ft), inum(elevation[i]), inum(st.F_lb), cum(i, "V"), cum(i, "M_OT"),
+                     inum(st.w_D_plf), inum(st.w_wall_plf), cum(i, "w_D"), inum(st.w_L_plf), cum(i, "w_L"),
+                     inum(st.w_Lr_plf), cum(i, "w_Lr")))
+    return Table(
+        headers, tuple(rows),
+        caption="Story heights and loads, with the cumulative value at the base of each story. Story 1 is the "
+                "bottom wall. F is the strength-level force applied at the top of the story; w are line loads "
+                "delivered at the top of the story. The cumulative columns come from the statics calculation.",
+        align_right=tuple(range(1, len(headers))),
+    )
 
 
 def _posts(s: StoryInput) -> str:
@@ -169,8 +201,9 @@ def _summary(result: DesignResult) -> Section:
 
     if result.governing_check:
         blocks.append(Paragraph(
-            f"Governing check: {result.check(result.governing_check).name} ({result.governing_check}), "
-            f"DCR = {dcr(result.max_dcr)} (demand / capacity; a value above 1.00 fails)."))
+            f"Governing check: {check_name(result.check(result.governing_check))} in story "
+            f"{result.governing_story}, DCR = {dcr(result.max_dcr)} "
+            "(demand / capacity; a value above 1.00 fails)."))
     if result.needs_input:
         blocks.append(Paragraph(
             f"{len(result.needs_input)} check(s) could not run until an engineer settles the decision named "
@@ -186,19 +219,26 @@ def _summary(result: DesignResult) -> Section:
         align_right=(2,),
     ))
 
-    checks = [c for s in stories for c in s.checks]
+    checks, bands = [], []
+    for n, story in enumerate(stories):
+        for c in ordered_checks(story.checks):
+            checks.append(c)
+            bands.append("band-a" if n % 2 == 0 else "band-b")
     blocks.append(Table(
         ("Story", "Check", "Demand", "Capacity", "DCR", "Status", "Note"),
         tuple(_check_row(c) for c in checks),
-        caption="All checks. DCR = demand / capacity. The governing check is marked.",
-        row_classes=tuple(_row_class(c, result.governing_check) for c in checks),
+        caption="All checks, grouped by story. DCR = demand / capacity. The governing check is in bold; "
+                "a failing or incomplete check keeps its own colour through the story banding.",
+        row_classes=tuple(f"{band} {_row_class(c, result.governing_check)}".strip()
+                          for c, band in zip(checks, bands)),
         align_right=(2, 3, 4),
+        span_col=0,
     ))
     return Section("summary", "Summary of results", tuple(blocks))
 
 
 def _check_label(result: DesignResult, check_id: str | None) -> str:
-    return f"{result.check(check_id).name} ({check_id})" if check_id else "-"
+    return check_name(result.check(check_id)) if check_id else "-"
 
 
 def _check_row(c: CheckResult) -> tuple[str, ...]:
@@ -206,15 +246,15 @@ def _check_row(c: CheckResult) -> tuple[str, ...]:
     if c.status is CheckStatus.NEEDS_INPUT and c.decision:
         note = f"Decision {c.decision}: {c.message}"
     return (
-        str(c.story), c.name,
+        str(c.story), check_name(c),
         with_unit(c.demand, c.demand_unit), with_unit(c.capacity, c.capacity_unit), dcr(c.dcr),
         _CHECK_STATUS_LABEL[c.status], note,
     )
 
 
 def _row_class(c: CheckResult, governing_id: str | None) -> str:
-    cls = _CHECK_STATUS_CLASS[c.status]
-    return f"{cls} governing" if c.id == governing_id else cls
+    cls = _CHECK_STATUS_CLASS[c.status] if c.status in (CheckStatus.FAIL, CheckStatus.NEEDS_INPUT) else ""
+    return f"{cls} governing".strip() if c.id == governing_id else cls
 
 
 # --- notes -------------------------------------------------------------------

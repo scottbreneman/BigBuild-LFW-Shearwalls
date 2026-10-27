@@ -42,6 +42,9 @@ class Table:
     row_classes: tuple[str, ...] = ()
     align_right: tuple[int, ...] = ()  # column indexes holding numbers
     symbol_cols: tuple[int, ...] = ()  # column indexes holding symbols such as M_OT (HTML shows subscripts)
+    # Column whose runs of equal values merge into one cell (HTML rowspan), e.g. one "5" beside
+    # all of story 5's checks. Markdown has no merged cells, so it repeats the value.
+    span_col: int | None = None
 
     def __post_init__(self) -> None:
         for r in self.rows:
