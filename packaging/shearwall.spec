@@ -10,16 +10,20 @@ datas = [
     (R("src", "ui"), "src/ui"),
     (R("src", "design"), "src/design"),          # includes components/data/*.csv
     (R("src", "analysis"), "src/analysis"),
+    (R("src", "report"), "src/report"),
+    (R(".streamlit"), ".streamlit"),
     (R("tests", "woodworks_example.py"), "tests"),
     (R("tests", "fixtures", "woodworks_components"), "tests/fixtures/woodworks_components"),
     (R("presets"), "presets"),
 ]
+import glob
+datas += [(f, "docs") for f in glob.glob(R("docs", "*.md"))]   # design-engine.md and the verification checklist are shown in the app
 binaries, hiddenimports = [], []
 for pkg in ("streamlit",):
     d, b, h = collect_all(pkg)
     datas += d; binaries += b; hiddenimports += h
 datas += copy_metadata("streamlit") + copy_metadata("pandas") + copy_metadata("numpy")
-hiddenimports += ["design", "analysis", "ui", "woodworks_example"]
+hiddenimports += ["design", "analysis", "report", "ui", "woodworks_example"]
 
 a = Analysis(
     [R("packaging", "launcher.py")],

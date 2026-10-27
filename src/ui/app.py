@@ -1,10 +1,12 @@
-"""Streamlit app: shear wall stack inputs, results, calc trace, items to verify.
+"""Streamlit app: shear wall stack with seismic and wind forces, three-column wall view, and a stack summary.
 
 Run from the repo root:   python -m streamlit run src/ui/app.py
 (Windows venv: .venv\\Scripts\\python -m streamlit run src/ui/app.py)
 
-The UI holds no design logic. It builds ``design.inputs.DesignInputs`` from the forms, calls
-``design.engine.run_design`` and displays the returned ``DesignResult`` and its calc trace.
+Layout: project settings and capacity data on top; wall inputs on the left, the selected shear wall in the middle,
+capacities and checks on the right; the whole-stack summary underneath. The UI holds no design logic: it builds
+``design.inputs.DesignInputs`` (one per load case that has forces), runs ``design.engine.run_design`` for each and
+reports, check by check, the larger demand/capacity ratio and the load case that produced it.
 """
 
 from __future__ import annotations
@@ -13,6 +15,7 @@ import base64
 import dataclasses
 import sys
 import traceback
+from contextlib import contextmanager
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # src/
@@ -23,38 +26,40 @@ ensure_paths()
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
 
-from design.autosize import autosize  # noqa: E402
-from design.engine import run_design  # noqa: E402
+from design.autosize import autosize_cases  # noqa: E402
 from design.library import default_library  # noqa: E402
 from design.preferences import MaterialPreferences  # noqa: E402
+from design import factors as code_factors  # noqa: E402
 from design.result import EDITIONS, OverallStatus  # noqa: E402
-from design.trace import CheckStatus  # noqa: E402
-from ui import forms  # noqa: E402
-from ui.graphic import stack_svg  # noqa: E402
-from ui.io import inputs_from_json, inputs_to_json, preferences_from_project  # noqa: E402
-from ui.trace_export import DISCLAIMER, result_to_json, result_to_markdown  # noqa: E402
+from ui import forms, reports  # noqa: E402
+from ui.example import PLACEHOLDERS, example_cases  # noqa: E402
+from ui.fbd import fbd_svg  # noqa: E402
+from ui.graphic import dcr_colour, stack_svg  # noqa: E402
+from ui.io import cases_from_json, cases_to_json, preferences_from_project  # noqa: E402
+from ui.loadcases import LABEL, SHORT, CaseSet, run_cases  # noqa: E402
+from ui.theme import (CSS, bars_html, case_chip, checks_panel_html, kpi_row, page_header, schedule_html,  # noqa: E402
+                      section_header, tie_label, tiles_html)
+from ui.trace_export import result_to_json  # noqa: E402
 
-SRC_EXAMPLE = "WoodWorks example components (answer-key fixtures)"
-SRC_PROJECT = "Project component library (src/design/components/data)"
-CATS = [("shear", "Shear"), ("aspect", "Aspect"), ("compression", "Chord comp."), ("holddown", "Hold-down"),
-        ("rod", "Rod"), ("plate_bearing", "Plate bearing"), ("plate_bending", "Plate bending"), ("drift", "Drift")]
+SRC_EXAMPLE = "WoodWorks example components"
+SRC_PROJECT = "Project component library"
+LIB_HELP = ("Project library (default) = the team's component tables in src/design/components/data (SDPWS Table 4.3A, "
+            "NDS lumber, rods, hold-downs). WoodWorks example = the small answer-key fixtures in tests/ used by the tests. "
+            "Switching loads that source's materials preset. Unverified or missing rows make checks report 'needs input'.")
+DRIFT_OPTIONS = [0, 600, 500, 400, 360, 240]
+GOV_AUTO = "Governing (auto)"
 
-st.set_page_config(page_title="Shear Wall Stack (prototype)", layout="wide")
+st.set_page_config(page_title="Shear Wall Stack Designer", layout="wide", initial_sidebar_state="collapsed")
+st.markdown(CSS, unsafe_allow_html=True)
 
 
 # ------------------------------------------------------------------ data sources and state
 @st.cache_resource
 def get_library(source: str):
     if source == SRC_EXAMPLE:
-        import woodworks_example as ex
-        return ex.library()
+        from ui.example import example_library
+        return example_library()
     return default_library()
-
-
-def example_inputs(source: str):
-    """The WoodWorks example, with component ids for the chosen data source."""
-    import woodworks_example as ex
-    return ex.inputs() if source == SRC_EXAMPLE else ex.production_inputs()
 
 
 def shipped_presets() -> dict[str, Path]:
@@ -83,54 +88,66 @@ def apply_prefs(prefs: MaterialPreferences) -> None:
     st.session_state.pop("autosize", None)
 
 
-def apply_inputs(inp) -> None:
-    for k, v in forms.global_values_from_inputs(inp).items():
+def on_source_change() -> None:
+    """A different library has different ids: load its matching preset (inputs are left as entered)."""
+    apply_prefs(default_preset(st.session_state["lib_source"]))
+
+
+def apply_cases(cases) -> None:
+    vals = forms.global_values_from_cases(cases)
+    vals["wind_drift_denominator"] = int(round(vals["wind_drift_denominator"])) if vals["wind_drift_denominator"] else 0
+    for k, v in vals.items():
         st.session_state[f"g_{k}"] = v
-    st.session_state["n_stories"] = len(inp.stories)
-    st.session_state["base_frames"] = forms.frames_from_inputs(inp)
+    frames = forms.frames_from_cases(cases)
+    st.session_state["n_stories"] = len(frames[0])
+    st.session_state["base_frames"] = frames
     st.session_state["ver"] = st.session_state.get("ver", 0) + 1
+    st.session_state["sel_story"] = 1
 
 
 def on_resize() -> None:
     n = int(st.session_state["n_stories"])
     st.session_state["base_frames"] = forms.resize_frames(st.session_state["base_frames"], n)
     st.session_state["ver"] += 1
+    st.session_state["sel_story"] = min(st.session_state.get("sel_story", 1), n)
 
 
 def on_load_example() -> None:
+    """The WoodWorks example with component ids for the selected data source, and that source's preset."""
     source = st.session_state["lib_source"]
-    apply_inputs(example_inputs(source))
+    apply_cases(example_cases(production=source == SRC_PROJECT))
     apply_prefs(default_preset(source))
 
 
-def on_source_change() -> None:
-    """A different library has different ids: load its matching preset (inputs are left as entered)."""
-    apply_prefs(default_preset(st.session_state["lib_source"]))
+@contextmanager
+def card(key: str, title: str, icon: str = "", pill: str = ""):
+    with st.container(border=True, key=f"card_{key}"):
+        st.markdown(section_header(title, icon, pill), unsafe_allow_html=True)
+        yield
+
+
+def img_html(svg: str) -> str:
+    return f'<img style="width:100%" src="data:image/svg+xml;base64,{base64.b64encode(svg.encode()).decode()}"/>'
 
 
 if "base_frames" not in st.session_state:
     st.session_state["lib_source"] = SRC_PROJECT
-    apply_inputs(example_inputs(SRC_PROJECT))
+    apply_cases(example_cases(production=True))
+if st.session_state.get("lib_source") not in (SRC_EXAMPLE, SRC_PROJECT):
+    st.session_state["lib_source"] = SRC_PROJECT
 if "prefs" not in st.session_state:
     apply_prefs(default_preset(st.session_state["lib_source"]))
 
-# ------------------------------------------------------------------ sidebar
+# ------------------------------------------------------------------ sidebar (file in)
 with st.sidebar:
-    st.header("Project")
-    st.text_input("Project name", key="g_project_name")
-    st.radio("Component data", [SRC_PROJECT, SRC_EXAMPLE], key="lib_source", on_change=on_source_change,
-             help="Project library: the team's component tables (SDPWS Table 4.3A, NDS, rods, hold-downs). "
-                  "Answer-key fixtures: the small set transcribed from the WoodWorks example, used by the tests. "
-                  "Rows still 'pending' report 'needs input' instead of using unchecked numbers.")
-    st.button("Load WoodWorks 5-story example", on_click=on_load_example, use_container_width=True,
-              help="Loads the example with component ids for the selected data source.")
+    st.header("Files")
     up = st.file_uploader("Load inputs (.json)", type="json")
     if up is not None:
         marker = (up.name, up.size)
         if st.session_state.get("last_upload") != marker:
             try:
                 text = up.getvalue().decode("utf-8")
-                apply_inputs(inputs_from_json(text))
+                apply_cases(cases_from_json(text))
                 saved = preferences_from_project(text)
                 if saved is not None:
                     apply_prefs(saved)
@@ -138,18 +155,16 @@ with st.sidebar:
                 st.rerun()
             except Exception as exc:  # noqa: BLE001
                 st.error(f"Could not read inputs file: {exc}")
-    st.caption("Editions: " + ", ".join(EDITIONS))
 
+head_l, head_r = st.columns([5, 1.3])
+head_l.markdown(page_header(EDITIONS, "Prototype · needs PE review"), unsafe_allow_html=True)
+report_slot = head_r.container()
+tab_design, tab_mat, tab_trace, tab_basis, tab_verify, tab_report = st.tabs(
+    ["Design", "Materials", "Calc trace", "Engineering basis", "Items to verify", "Report"])
 lib = get_library(st.session_state["lib_source"])
-ver = st.session_state["ver"]
 
-st.title("Light-frame wood shear wall stack")
-st.warning(f"{DISCLAIMER} Source status of every value is shown; items not verified are listed under 'Items to verify'.")
 
-tab_in, tab_mat, tab_res, tab_trace, tab_verify, tab_report = st.tabs(
-    ["Inputs", "Materials", "Results", "Calc trace", "Items to verify", "Report"])
-
-# ------------------------------------------------------------------ materials (preferred lists)
+# ------------------------------------------------------------------ materials: preferred lists
 def pick_table(rows: list[dict], id_col: str, chosen, key: str) -> list:
     """Library rows with a 'Use' check column; returns the ticked ids in library order.
 
@@ -157,10 +172,10 @@ def pick_table(rows: list[dict], id_col: str, chosen, key: str) -> list:
     """
     if not rows:
         st.caption("No rows in this library.")
-        return [c for c in chosen]
+        return list(chosen)
     df = pd.DataFrame(rows)
     df.insert(0, "Use", df[id_col].isin(list(chosen)))
-    out = st.data_editor(df, key=key, hide_index=True, use_container_width=True,
+    out = st.data_editor(df, key=key, hide_index=True, width="stretch",
                          disabled=[c for c in df.columns if c != "Use"])
     here = set(df[id_col])
     return [c for c in chosen if c not in here] + list(out.loc[out["Use"], id_col])
@@ -177,323 +192,483 @@ LUMBER_SEP = " | "
 with tab_mat:
     prefs: MaterialPreferences = st.session_state["prefs"]
     pv = st.session_state["prefs_ver"]
-    st.caption("Down-select the component library to the materials you prefer. The input dropdowns show only "
-               "preferred options (unless 'Show all library options' is on), and **Auto-size** on the Inputs tab "
-               "proposes the lightest preferred option that passes. An empty selection means no restriction. "
-               "Row status is shown; unverified rows may be preferred and are flagged in the results.")
-    pc1, pc2, pc3 = st.columns([2, 2, 2])
-    presets = shipped_presets()
-    with pc1:
-        st.selectbox("Shipped presets", list(presets) or ["(none)"], key="preset_pick")
-        st.button("Load shipped preset", on_click=on_load_shipped_preset, disabled=not presets)
-    with pc2:
-        pup = st.file_uploader("Load a preset (.json)", type="json", key="preset_upload")
-        if pup is not None and st.session_state.get("last_preset_upload") != (pup.name, pup.size):
-            try:
-                apply_prefs(MaterialPreferences.from_json(pup.getvalue().decode("utf-8")))
-                st.session_state["last_preset_upload"] = (pup.name, pup.size)
-                st.rerun()
-            except Exception as exc:  # noqa: BLE001
-                st.error(f"Could not read preset: {exc}")
-    with pc3:
-        p_name = st.text_input("Preset name", value=prefs.name, key=f"p_name_{pv}")
+    with card("materials", "Preferred materials", "grid", st.session_state["lib_source"]):
+        st.caption("Down-select the component library to the materials you prefer. The Design tab's dropdowns show only "
+                   "preferred options (unless 'Show all library options' is on), and **Auto-size** below proposes the "
+                   "lightest preferred option that passes. An empty selection means no restriction. Row status is shown; "
+                   "unverified rows may be preferred and are flagged in the results.")
+        pc1, pc2, pc3 = st.columns([2, 2, 2])
+        presets = shipped_presets()
+        with pc1:
+            st.selectbox("Shipped presets", list(presets) or ["(none)"], key="preset_pick")
+            st.button("Load shipped preset", on_click=on_load_shipped_preset, disabled=not presets)
+        with pc2:
+            pup = st.file_uploader("Load a preset (.json)", type="json", key="preset_upload")
+            if pup is not None and st.session_state.get("last_preset_upload") != (pup.name, pup.size):
+                try:
+                    apply_prefs(MaterialPreferences.from_json(pup.getvalue().decode("utf-8")))
+                    st.session_state["last_preset_upload"] = (pup.name, pup.size)
+                    st.rerun()
+                except Exception as exc:  # noqa: BLE001
+                    st.error(f"Could not read preset: {exc}")
+        with pc3:
+            p_name = st.text_input("Preset name", value=prefs.name, key=f"p_name_{pv}")
 
-    m_asm, m_lum, m_rod, m_hd = st.tabs(["Sheathing and nailing", "Lumber and posts", "Rod systems", "Hold-downs"])
-    with m_asm:
-        sc1, sc2 = st.columns(2)
-        p_sides = sc1.multiselect("Sheathed sides auto-size may use", [1, 2], default=list(prefs.sides),
-                                  key=f"p_sides_{pv}")
-        p_panels = sc2.multiselect("Panel type (the first is used by auto-size)", ["OSB", "Plywood"],
-                                   default=[p for p in prefs.panel_types if p in ("OSB", "Plywood")],
-                                   key=f"p_panels_{pv}")
-        p_asm = pick_table([{"Assembly": a.assembly_id, "Grade": a.panel_grade,
-                             "Panel t": a.min_nominal_panel_thickness_label, "Nail": a.nail_designation,
-                             "Edge (in)": a.edge_nail_spacing_in, "v_n (plf)": a.v_n_plf,
-                             "G_a OSB (k/in)": a.Ga_osb_kips_per_in, "G_a ply (k/in)": a.Ga_plywood_kips_per_in,
-                             "Status": a.status.value} for a in lib.shear_wall_assemblies],
-                           "Assembly", prefs.assemblies, f"p_asm_{pv}")
-    with m_lum:
-        lc1, lc2, lc3 = st.columns(3)
-        p_posts = lc1.multiselect("Post sizes", [s.nominal for s in lib.lumber_sizes],
-                                  default=[p for p in prefs.post_sizes if p in {s.nominal for s in lib.lumber_sizes}],
-                                  key=f"p_posts_{pv}")
-        p_min = lc2.number_input("Min posts per chord", min_value=1, max_value=40, value=prefs.min_posts,
-                                 key=f"p_min_{pv}")
-        p_max = lc3.number_input("Max posts per chord", min_value=1, max_value=40, value=prefs.max_posts,
-                                 key=f"p_max_{pv}")
-        p_lum = pick_table([{"Lumber": LUMBER_SEP.join((v.species_group, v.grade, v.size_class)),
-                             "F_c (psi)": v.Fc_psi, "F_c⊥ (psi)": v.Fc_perp_psi, "E (psi)": v.E_psi,
-                             "E_min (psi)": v.Emin_psi, "Status": v.status.value} for v in lib.lumber_design_values],
-                           "Lumber", [LUMBER_SEP.join(x) for x in prefs.lumber], f"p_lum_{pv}")
-    with m_rod:
-        p_rods = pick_table([{"Rod system": r.system_id, "Diameter (in)": r.rod_diameter_in,
-                              "Material": r.rod_material, "Allowable T (lb)": r.rod_allowable_tension_lb,
-                              "A_e (in²)": r.rod_net_area_in2, "Status": r.status.value}
-                             for r in lib.continuous_rod_systems], "Rod system", prefs.rods, f"p_rods_{pv}")
-    with m_hd:
-        p_hds = pick_table([{"Model": h.model, "Manufacturer": h.manufacturer,
-                             "T_allow DF/SP (lb)": h.allowable_tension_DF_SP_lb,
-                             "T_allow SPF/HF (lb)": h.allowable_tension_SPF_HF_lb,
-                             "Deflection (in)": h.deflection_at_allowable_in, "Status": h.status.value}
-                            for h in lib.holddowns], "Model", prefs.holddowns, f"p_hds_{pv}")
+        m_asm, m_lum, m_rod, m_hd = st.tabs(["Sheathing and nailing", "Lumber and posts", "Rod systems", "Hold-downs"])
+        with m_asm:
+            sc1, sc2 = st.columns(2)
+            p_sides = sc1.multiselect("Sheathed sides auto-size may use", [1, 2], default=list(prefs.sides),
+                                      key=f"p_sides_{pv}")
+            p_panels = sc2.multiselect("Panel type (the first is used by auto-size)", ["OSB", "Plywood"],
+                                       default=[p for p in prefs.panel_types if p in ("OSB", "Plywood")],
+                                       key=f"p_panels_{pv}")
+            p_asm = pick_table([{"Assembly": a.assembly_id, "Grade": a.panel_grade,
+                                 "Panel t": a.min_nominal_panel_thickness_label, "Nail": a.nail_designation,
+                                 "Edge (in)": a.edge_nail_spacing_in, "v_n (plf)": a.v_n_plf,
+                                 "G_a OSB (k/in)": a.Ga_osb_kips_per_in, "G_a ply (k/in)": a.Ga_plywood_kips_per_in,
+                                 "Status": a.status.value} for a in lib.shear_wall_assemblies],
+                               "Assembly", prefs.assemblies, f"p_asm_{pv}")
+        with m_lum:
+            lc1, lc2, lc3 = st.columns(3)
+            sizes_here = [x.nominal for x in lib.lumber_sizes]
+            p_posts = lc1.multiselect("Post sizes", sizes_here, default=[p for p in prefs.post_sizes if p in sizes_here],
+                                      key=f"p_posts_{pv}")
+            p_min = lc2.number_input("Min posts per chord", min_value=1, max_value=40, value=prefs.min_posts,
+                                     key=f"p_min_{pv}")
+            p_max = lc3.number_input("Max posts per chord", min_value=1, max_value=40, value=prefs.max_posts,
+                                     key=f"p_max_{pv}")
+            p_lum = pick_table([{"Lumber": LUMBER_SEP.join((v.species_group, v.grade, v.size_class)),
+                                 "F_c (psi)": v.Fc_psi, "F_c⊥ (psi)": v.Fc_perp_psi, "E (psi)": v.E_psi,
+                                 "E_min (psi)": v.Emin_psi, "Status": v.status.value} for v in lib.lumber_design_values],
+                               "Lumber", [LUMBER_SEP.join(x) for x in prefs.lumber], f"p_lum_{pv}")
+        with m_rod:
+            p_rods = pick_table([{"Rod system": r.system_id, "Diameter (in)": r.rod_diameter_in,
+                                  "Material": r.rod_material, "Allowable T (lb)": r.rod_allowable_tension_lb,
+                                  "A_e (in²)": r.rod_net_area_in2, "Status": r.status.value}
+                                 for r in lib.continuous_rod_systems], "Rod system", prefs.rods, f"p_rods_{pv}")
+        with m_hd:
+            p_hds = pick_table([{"Model": h.model, "Manufacturer": h.manufacturer,
+                                 "T_allow DF/SP (lb)": h.allowable_tension_DF_SP_lb,
+                                 "T_allow SPF/HF (lb)": h.allowable_tension_SPF_HF_lb,
+                                 "Deflection (in)": h.deflection_at_allowable_in, "Status": h.status.value}
+                                for h in lib.holddowns], "Model", prefs.holddowns, f"p_hds_{pv}")
 
-    new_prefs = MaterialPreferences(
-        name=p_name, assemblies=tuple(p_asm), sides=tuple(sorted(int(x) for x in p_sides)),
-        panel_types=tuple(p_panels), lumber=tuple(tuple(x.split(LUMBER_SEP)) for x in p_lum),
-        post_sizes=tuple(p_posts), min_posts=int(p_min), max_posts=int(p_max), rods=tuple(p_rods),
-        holddowns=tuple(p_hds), notes=prefs.notes)
-    if new_prefs != prefs:
-        st.session_state["prefs"] = new_prefs
-        st.session_state.pop("autosize", None)
-    prefs = new_prefs
-    for w in prefs.check_against(lib):
-        st.warning(w)
-    st.download_button("Download preset (.json)", prefs.to_json(),
-                       file_name=(prefs.name or "materials-preset").replace(" ", "_") + ".json",
-                       mime="application/json")
+        new_prefs = MaterialPreferences(
+            name=p_name, assemblies=tuple(p_asm), sides=tuple(sorted(int(x) for x in p_sides)),
+            panel_types=tuple(p_panels), lumber=tuple(tuple(x.split(LUMBER_SEP)) for x in p_lum),
+            post_sizes=tuple(p_posts), min_posts=int(p_min), max_posts=int(p_max), rods=tuple(p_rods),
+            holddowns=tuple(p_hds), notes=prefs.notes)
+        if new_prefs != prefs:
+            st.session_state["prefs"] = new_prefs
+            st.session_state.pop("autosize", None)
+        prefs = new_prefs
+        for w in prefs.check_against(lib):
+            st.warning(w)
+        st.download_button("Download preset (.json)", prefs.to_json(),
+                           file_name=(prefs.name or "materials-preset").replace(" ", "_") + ".json",
+                           mime="application/json")
 
-# ------------------------------------------------------------------ inputs
-with tab_in:
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.subheader("Wall and load")
-        st.radio("Load type", ["seismic", "wind"], key="g_load_type", horizontal=True)
-        st.number_input("Wall length b (ft)", min_value=0.0, step=0.5, key="g_b_ft")
-        st.number_input("Number of stories (1 = bottom)", min_value=1, max_value=5, step=1, key="n_stories",
-                        on_change=on_resize)
-        st.number_input("End post width d_post (in); 0 = not given", min_value=0.0, step=0.5, key="g_d_post_in",
-                        help="Default chord lever arm (decision D2). Not needed when every story has its own d_arm.")
-    seismic = st.session_state["g_load_type"] == "seismic"
-    with c2:
-        st.subheader("Seismic" if seismic else "Wind")
-        if seismic:
-            st.number_input("S_DS", min_value=0.0, step=0.01, key="g_S_DS", format="%.3f")
-            st.number_input("C_d", min_value=0.0, step=0.5, key="g_C_d")
-            st.number_input("I_e", min_value=0.0, step=0.05, key="g_I_e")
-            st.selectbox("Risk category", ["I", "II", "III", "IV"], key="g_risk_category")
-            st.selectbox("Seismic design category", ["", "A", "B", "C", "D", "E", "F"], key="g_sdc")
+with tab_design:
+    top_l, top_r = st.columns([3, 2])
+    # ---------------------------------------------------------------- project settings
+    with top_l:
+        with card("project", "Project settings", "pin", "ASCE 7-22 · SDPWS 2021 · NDS 2024"):
+            a, b, c, d = st.columns(4)
+            a.text_input("Project name", key="g_project_name")
+            b.selectbox("Stories (1 = bottom)", [1, 2, 3, 4, 5], key="n_stories", on_change=on_resize)
+            c.number_input("Wall length b (ft)", min_value=0.0, step=0.5, key="g_b_ft")
+            d.number_input("End post d_post (in); 0 = not given", min_value=0.0, step=0.5, key="g_d_post_in",
+                           help="Default chord lever arm (decision D2). Not needed when every story has its own d arm.")
+            e, f, g1, h1, i1 = st.columns(5)
+            e.selectbox("Risk category", ["I", "II", "III", "IV"], key="g_risk_category")
+            f.selectbox("Seismic design category", ["", "A", "B", "C", "D", "E", "F"], key="g_sdc")
+            g1.number_input("S_DS", min_value=0.0, step=0.01, key="g_S_DS", format="%.3f")
+            h1.number_input("C_d", min_value=0.0, step=0.5, key="g_C_d")
+            i1.number_input("I_e", min_value=0.0, step=0.05, key="g_I_e")
+            j, k, l1, m1 = st.columns(4)
+            j.selectbox("Wind drift limit", DRIFT_OPTIONS, key="g_wind_drift_denominator",
+                        format_func=lambda x: "none" if not x else f"H / {x}",
+                        help="No code limit is applied for wind; the owner or project sets it (decision D6).")
+            k.number_input("Net roof uplift (plf, strength)", min_value=0.0, step=10.0, key="g_roof_uplift_plf")
+            l1.number_input("Wood bearing amplification", min_value=1.0, step=0.05, key="g_wood_bearing_factor",
+                            help="Wood-to-wood crushing amplification (example §3.4.3, engineer judgement).")
+            m1.write("")
+            m1.checkbox("Carry rotation into drift (D6)", key="g_carry_rotation")
+            n1, n2, n3, n4 = st.columns(4)
+            n1.selectbox("Deflection method", ["3-term", "4-term"], key="g_deflection_method",
+                         help="3-term: SDPWS Eq. 4.3-1 (the example's method). 4-term: SDPWS Commentary C4.3.4-1; needs the "
+                              "panel and nail slip constants in the component library (decision D6).")
+            n2.selectbox("Framing moisture", ["dry", "green"], key="g_framing_moisture",
+                         help="Selects the nail-slip equation (4-term method only).")
+            n3.write("")
+            n3.checkbox("Tie-down restraint at every level", key="g_restraint_each_level",
+                        help="Off: chord deformation accumulates up the building (example Table 3.17B). "
+                             "Cannot be combined with 'carry rotation'.")
+            with st.expander("Which example values are placeholders?"):
+                for p in PLACEHOLDERS:
+                    st.markdown(f"- {p}")
+
+    # ---------------------------------------------------------------- capacities and data
+    with top_r:
+        with card("data", "Capacities and data", "grid"):
+            st.selectbox("Component data", [SRC_PROJECT, SRC_EXAMPLE], key="lib_source", help=LIB_HELP,
+                         on_change=on_source_change)
+            lib = get_library(st.session_state["lib_source"])
+            counts = pd.DataFrame(lib.status_counts()).T.fillna(0).astype(int)
+            tot = counts.sum()
+            st.markdown(
+                f'<span class="chip src verified">{int(tot.get("verified", 0))} verified</span>'
+                f'<span class="chip src memory">{int(tot.get("memory", 0))} memory</span>'
+                f'<span class="chip src">{int(tot.get("pending", 0))} pending</span>'
+                f'<span class="note"> rows in the capacity tables</span>', unsafe_allow_html=True)
+            tables = {"Shear wall assemblies (SDPWS Table 4.3A)": lib.shear_wall_assemblies,
+                      "Continuous rod systems": lib.continuous_rod_systems, "Hold-downs": lib.holddowns,
+                      "Lumber design values (NDS)": lib.lumber_design_values,
+                      "Size factors (NDS Supplement 4A)": lib.size_factors, "Lumber sizes": lib.lumber_sizes,
+                      "Sheathing panels": lib.sheathing_panels, "Nails": lib.nails}
+            with st.expander("Browse capacity tables"):
+                tname = st.selectbox("Table", list(tables), key="data_table")
+                recs = [dataclasses.asdict(r) for r in tables[tname]]
+                df_t = pd.DataFrame(recs)
+                if "status" in df_t:
+                    df_t["status"] = df_t["status"].map(lambda x: getattr(x, "value", x))
+                st.dataframe(df_t.dropna(axis=1, how="all"), width="stretch", hide_index=True)
+            st.toggle("Show all library options (ignore the preferred materials)", key="show_all",
+                      help="Off: the dropdowns list only the materials ticked on the Materials tab.")
+            st.button("Load WoodWorks 5-story example", on_click=on_load_example, width="stretch",
+                      help="Loads the example with component ids for the selected data source.")
+
+    view = MaterialPreferences() if st.session_state.get("show_all") else prefs  # empty preferences = everything
+    lumber_view = view.lumber_options(lib)
+
+    ver = st.session_state["ver"]
+    kpi_slot = st.container()
+    col_l, col_m, col_r = st.columns([1.15, 1.7, 1.25])
+
+    # ---------------------------------------------------------------- left: inputs for the selected wall
+    loads, chords, ties = st.session_state["base_frames"]
+    n = len(loads)
+    if st.session_state.get("sel_story") not in range(1, n + 1):
+        st.session_state["sel_story"] = 1
+
+    def fv(x, default=0.0):
+        try:
+            return default if pd.isna(x) else x
+        except (TypeError, ValueError):
+            return x
+
+    def wnum(df, col, label, story, **kw):
+        val = st.number_input(label, value=float(fv(df.at[story, col])), key=f"w{ver}_{story}_{col}", **kw)
+        df.at[story, col] = val
+        return val
+
+    def wchk(df, col, label, story):
+        cur = fv(df.at[story, col], True)
+        val = st.checkbox(label, value=bool(cur), key=f"w{ver}_{story}_{col}")
+        df.at[story, col] = val
+        return val
+
+    def wsel(df, col, label, story, options, fmt=None, cast=None):
+        cur = fv(df.at[story, col], "")
+        cur = cast(cur) if cast and cur != "" else cur
+        opts = list(options)
+        if cur not in opts:
+            opts.insert(0, cur)
+        val = st.selectbox(label, opts, index=opts.index(cur), key=f"w{ver}_{story}_{col}", format_func=fmt or str)
+        df.at[story, col] = val
+        return val
+
+    def opts_of(values) -> list:
+        out = []
+        for v in values:
+            if isinstance(v, str) and v and v not in out:
+                out.append(v)
+        return out
+
+    with col_l:
+        with card("left", "Wall inputs", "ruler"):
+            sel = st.selectbox("Wall (story)", list(range(1, n + 1)), key="sel_story", format_func=lambda i: f"Story {i}")
+            with st.expander("Loads", expanded=True):
+                a1, a2 = st.columns(2)
+                with a1:
+                    wnum(loads, "F_seismic_lb", "Seismic F (lb)", sel, min_value=0.0, step=50.0, format="%.0f")
+                with a2:
+                    wnum(loads, "F_wind_lb", "Wind F (lb)", sel, min_value=0.0, step=50.0, format="%.0f")
+                st.caption("Strength-level forces at the top of this story. Leave a load type at 0 on every story to skip it; "
+                           "the program checks both and reports which governs.")
+                b1, b2 = st.columns(2)
+                with b1:
+                    wnum(loads, "h_ft", "Height h (ft)", sel, min_value=0.0, step=0.5, format="%.2f")
+                    wnum(loads, "w_D_plf", "Dead w_D (plf)", sel, min_value=0.0, format="%.1f")
+                    wnum(loads, "w_L_plf", "Floor live w_L (plf)", sel, min_value=0.0, format="%.1f")
+                with b2:
+                    wnum(loads, "w_wall_plf", "Wall weight (plf)", sel, min_value=0.0, format="%.1f")
+                    wnum(loads, "w_Lr_plf", "Roof live w_Lr (plf)", sel, min_value=0.0, format="%.1f")
+            with st.expander("Nailing and sheathing", expanded=True):
+                wsel(loads, "assembly_id", "Nailing / assembly", sel,
+                     opts_of([a.assembly_id for a, _ in view.assembly_options(lib)] + list(loads["assembly_id"])))
+                c1, c2 = st.columns(2)
+                with c1:
+                    wsel(loads, "sides", "Sheathed sides", sel, [1, 2], cast=int)
+                with c2:
+                    wsel(loads, "panel_type", "Panel", sel, ["OSB", "Plywood"])
+            with st.expander("Chord posts"):
+                lay = wsel(chords, "layout", "Chord geometry", sel, forms.LAYOUTS,
+                           fmt=lambda x: {"given": "given: enter chord length and d",
+                                          "example": "layout rule: from the post count (example)"}.get(x, x))
+                if lay == "example":
+                    k1, k2, k3 = st.columns(3)
+                    with k1:
+                        wnum(chords, "post_thickness_in", "Post t along wall (in)", sel, min_value=0.0, step=0.5)
+                    with k2:
+                        wnum(chords, "outboard_posts", "Posts outboard of rod", sel, min_value=0.0, step=1.0, format="%.0f")
+                    with k3:
+                        wnum(chords, "rod_gap_in", "Rod gap (in)", sel, min_value=0.0, step=0.5)
+                    st.caption("Chord length and d follow from the post count (example Figs. 3.7–3.8); the entered "
+                               "values below are not used.")
+                d1, d2 = st.columns(2)
+                with d1:
+                    wnum(chords, "n_posts", "Posts (n)", sel, min_value=1.0, step=1.0, format="%.0f")
+                    wnum(chords, "chord_length_ft", "Chord length (ft)", sel, min_value=0.0, step=0.125, format="%.3f")
+                with d2:
+                    wsel(chords, "post_nominal", "Post", sel, opts_of(view.post_size_options(lib) + list(chords["post_nominal"])))
+                    wnum(chords, "d_arm_ft", "d arm (ft); 0 = D2 default", sel, min_value=0.0, step=0.05, format="%.2f")
+                g1c, g2c, g3c = st.columns(3)
+                with g1c:
+                    wnum(chords, "d_out_of_plane_in", "Post depth, out of plane (in); 0 = dressed", sel, min_value=0.0,
+                         step=0.25, format="%.2f")
+                with g2c:
+                    wnum(chords, "top_plates_in", "Top plates (in)", sel, min_value=0.0, step=0.5, format="%.2f")
+                with g3c:
+                    wnum(chords, "bottom_plate_in", "Bottom plate (in)", sel, min_value=0.0, step=0.5, format="%.2f")
+                wsel(chords, "species_group", "Species", sel,
+                     opts_of(sorted({x.species_group for x in lumber_view}) + list(chords["species_group"])))
+                e1, e2 = st.columns(2)
+                with e1:
+                    wsel(chords, "grade", "Grade", sel, opts_of(sorted({x.grade for x in lumber_view}) + list(chords["grade"])))
+                with e2:
+                    wsel(chords, "size_class", "Size class", sel,
+                         opts_of(sorted({x.size_class for x in lumber_view}) + list(chords["size_class"])))
+            with st.expander("Tie-down"):
+                kind = wsel(ties, "kind", "Type", sel, [forms.ROD, forms.HOLDDOWN])
+                if kind == forms.ROD:
+                    wsel(ties, "system_id", "Rod system", sel,
+                         opts_of([x.system_id for x in view.rod_options(lib)] + list(ties["system_id"].dropna())))
+                    f1, f2, f3 = st.columns(3)
+                    with f1:
+                        wnum(ties, "plate_width_in", "Plate w (in)", sel, min_value=0.0, step=0.25)
+                        wnum(ties, "slack_in", "Slack (in)", sel, min_value=0.0, step=0.01, format="%.4f")
+                    with f2:
+                        wnum(ties, "plate_length_in", "Plate l (in)", sel, min_value=0.0, step=0.25)
+                        wnum(ties, "takeup_elongation_in", "Take-up (in)", sel, min_value=0.0, step=0.005, format="%.4f")
+                    with f3:
+                        wnum(ties, "plate_thickness_in", "Plate t (in)", sel, min_value=0.0, step=0.125, format="%.3f")
+                        wnum(ties, "plate_Fy_psi", "Plate Fy (psi)", sel, min_value=0.0, step=1000.0, format="%.0f")
+                    wnum(ties, "rod_length_ft", "Rod length (ft); 0 = story h", sel, min_value=0.0, step=0.5)
+                    h1, h2 = st.columns(2)
+                    with h1:
+                        wnum(ties, "bearing_hole_in", "Bearing hole (in); 0 = default", sel, min_value=0.0, step=0.0625, format="%.4f")
+                    with h2:
+                        wnum(ties, "shrinkage_in", "Shrinkage (in)", sel, min_value=0.0, step=0.01, format="%.3f")
+                    wchk(ties, "takeup_device", "Take-up device (counts slack and take-up elongation)", sel)
+                else:
+                    wsel(ties, "model", "Hold-down model", sel,
+                         opts_of([x.model for x in lib.holddowns if not view.holddowns or x.model in view.holddowns]
+                                 + list(ties["model"].dropna())))
+                    wnum(ties, "T_allow_lb", "T_allow (lb); 0 = use model", sel, min_value=0.0, step=100.0, format="%.0f")
+                    wnum(ties, "delta_a_in", "Δ_a (in)", sel, min_value=0.0, step=0.01, format="%.3f")
+
+    # ---------------------------------------------------------------- run the engine for each load case
+    g = {k: st.session_state[f"g_{k}"] for k in forms.GLOBAL_DEFAULTS}
+    cases = forms.build_cases(g, loads, chords, ties)
+    cs, run_error = None, None
+    if cases:
+        try:
+            raw = run_cases(cases, lib)
+            commit = git_commit()
+            cs = CaseSet(raw.inputs, {c: dataclasses.replace(r, git_commit=commit) for c, r in raw.results.items()})
+        except Exception:  # noqa: BLE001  (surface engine bugs instead of a blank page)
+            run_error = traceback.format_exc()
+    valid = cs is not None and cs.valid
+
+    with kpi_slot:
+        st.markdown(kpi_row(n, float(g["b_ft"] or 0), float(pd.to_numeric(loads["h_ft"], errors="coerce").fillna(0).sum()),
+                            cs if valid else None), unsafe_allow_html=True)
+        if run_error:
+            st.error("The design engine raised an error. Send this to the calc builder.")
+            st.code(run_error)
+        elif not cases:
+            st.info("Enter a seismic and/or wind force for at least one story. Each load type with a force is checked "
+                    "and the governing one is reported.")
+        elif not valid:
+            for case, errs in cs.invalid().items():
+                st.error(f"Fix these {LABEL[case].lower()} inputs before the engine will run checks:")
+                st.table(pd.DataFrame([{"Field": e.field, "Problem": e.message} for e in errs]))
         else:
-            st.number_input("Net roof uplift on wall (plf, strength level)", min_value=0.0, step=10.0,
-                            key="g_roof_uplift_plf")
-            st.number_input("Wind drift limit h / ___ ; 0 = no limit applied", min_value=0.0, step=50.0,
-                            key="g_wind_drift_denominator",
-                            help="No code limit is applied for wind; the owner or project sets it (decision D6).")
-    with c3:
-        st.subheader("Engineer settings")
-        st.number_input("Wood bearing amplification", min_value=1.0, step=0.05, key="g_wood_bearing_factor",
-                        help="Wood-to-wood crushing amplification (example §3.4.3, engineer judgement).")
-        st.checkbox("Carry rotation from lower stories into drift (D6)", key="g_carry_rotation")
-        if not seismic:
-            st.caption("Seismic fields are hidden for wind.")
-    st.caption("Story forces F are **strength level** (E_h or W). The engine applies the ASD and drift combination "
-               "factors (decision D8, revised).")
+            {OverallStatus.PASS: st.success, OverallStatus.FAIL: st.error, OverallStatus.INCOMPLETE: st.warning}[cs.status]({
+                OverallStatus.PASS: "All checks pass",
+                OverallStatus.FAIL: "One or more checks FAIL",
+                OverallStatus.INCOMPLETE: "Incomplete: some checks need engineer input or component data"}[cs.status])
 
-    base_loads, base_chords, base_ties = st.session_state["base_frames"]
+    with report_slot:
+        st.write("")
+        if valid:
+            gcase = reports.pick_case(cs, reports.GOV_AUTO)
+            st.download_button(f"Calculation report ({LABEL[gcase]})", reports.html_report(cs, gcase),
+                               file_name=f"{reports.file_stem(cs, gcase)}_report.html", mime="text/html",
+                               key="dl_report_top", width="stretch", type="primary",
+                               help="One self-contained HTML report from src/report for the governing load case. "
+                                    "Open it and print to PDF from the browser. More options are on the Report tab.")
+        else:
+            st.button("Calculation report", disabled=True, width="stretch", help="Needs valid inputs.")
 
-    def opts(base: list[str], current) -> list[str]:
-        vals = [v for v in base if v]
-        for c in current:
-            if isinstance(c, str) and c and c not in vals:
-                vals.append(c)
-        return vals
+    with st.sidebar:
+        if cases:
+            st.download_button("Download inputs (.json)", cases_to_json(cases, prefs), file_name="shearwall_inputs.json",
+                               mime="application/json", width="stretch")
 
-    show_all = st.toggle("Show all library options (ignore the preferred materials)", key="show_all")
-    view = MaterialPreferences() if show_all else prefs  # an empty preference list means everything
-    lumber_rows = view.lumber_options(lib)
-    asm_ids = opts(list(dict.fromkeys(a.assembly_id for a, _ in view.assembly_options(lib))),
-                   base_loads["assembly_id"])
-    rod_ids = opts([r.system_id for r in view.rod_options(lib)], base_ties["system_id"].dropna())
-    hd_models = opts([h.model for h in lib.holddowns if not view.holddowns or h.model in view.holddowns],
-                     base_ties["model"].dropna())
-    species = opts(sorted({v.species_group for v in lumber_rows}), base_chords["species_group"])
-    grades = opts(sorted({v.grade for v in lumber_rows}), base_chords["grade"])
-    classes = opts(sorted({v.size_class for v in lumber_rows}), base_chords["size_class"])
-    posts = opts(view.post_size_options(lib), base_chords["post_nominal"])
+    # ---------------------------------------------------------------- middle: the individual shear wall
+    with col_m:
+        with card("mid", f"Shear wall: story {sel}", "arrows"):
+            if not valid:
+                st.info("The wall view appears once the inputs are valid.")
+            else:
+                active = cs.cases
+                view_opts = [GOV_AUTO] + [LABEL[c] for c in active]
+                if st.session_state.get("view_case") not in view_opts:
+                    st.session_state["view_case"] = GOV_AUTO
+                view = st.selectbox("Load case shown", view_opts, key="view_case")
+                _, gcase = cs.story_dcr(sel)
+                vcase = (gcase or active[0]) if view == GOV_AUTO else next(c for c in active if LABEL[c] == view)
+                gdcr, _gc = cs.story_dcr(sel)
+                gtxt = "—" if gdcr is None else f"{gdcr:.2f}"
+                st.markdown(f'<div class="govbanner"><span>Governing for story {sel}: <b>{LABEL.get(gcase, "none yet")}</b>'
+                            f'{case_chip(gcase)}</span><span>max DCR <b>{gtxt}</b></span></div>', unsafe_allow_html=True)
+                s_in = cs.inputs[vcase].stories[sel - 1]
+                r = cs.results[vcase]
+                comp_ck = next((c for c in r.stories[sel - 1].checks if c.category == "compression"), None)
+                V, vv = cs.num(vcase, f"S{sel}.statics.V"), cs.num(vcase, f"S{sel}.shear.v")
+                wdl, Mot = cs.num(vcase, f"S{sel}.statics.w_D"), cs.num(vcase, f"S{sel}.statics.M_OT")
+                T = cs.num(vcase, f"S{sel}.chord.asd.T")
+                C = comp_ck.demand if comp_ck is not None else None
+                sdcr = r.stories[sel - 1].max_dcr
+                fill = {"#DCFCE7": "#F0FDF4", "#FEF3C7": "#FFFBEB", "#FEE2E2": "#FEF2F2"}.get(dcr_colour(sdcr), "#F4F7F5")
+                st.markdown(img_html(fbd_svg(story=sel, b_ft=cs.inputs[vcase].b_ft, h_ft=s_in.h_ft, V=V, v=vv, w_dl=wdl,
+                                             T=T, C=C, tie_label=tie_label(s_in), tone_fill=fill)), unsafe_allow_html=True)
+                fmt = lambda x, nd=0: "—" if x is None else f"{x:,.{nd}f}"  # noqa: E731
+                st.markdown(tiles_html([
+                    ("Story shear V", fmt(V), f"lb · {LABEL[vcase].lower()}, strength", ""),
+                    ("Unit shear v", fmt(vv), "plf · ASD", "k"),
+                    ("Overturning M_OT", fmt(Mot), "ft-lb", "o"),
+                    ("Wall DL resisting", fmt(wdl), "plf · cumulative", ""),
+                    ("Tie-down uplift T", fmt(T), "lb · ASD", "r")]), unsafe_allow_html=True)
 
-    NC = st.column_config.NumberColumn
-    SC = st.column_config.SelectboxColumn
-    t_loads, t_chords, t_ties = st.tabs(["Loads and nailing", "Chord posts", "Tie-downs"])
-    with t_loads:
-        loads = st.data_editor(base_loads, key=f"loads_{ver}", num_rows="fixed", use_container_width=True, column_config={
-            "h_ft": NC("h (ft)", min_value=0.0, step=0.5, format="%.2f"),
-            "F_lb": NC("F (lb)", min_value=0.0, step=50.0, format="%.0f"),
-            "w_D_plf": NC("w_D (plf)", min_value=0.0, format="%.1f"),
-            "w_wall_plf": NC("w_wall (plf)", min_value=0.0, format="%.1f"),
-            "w_L_plf": NC("w_L (plf)", min_value=0.0, format="%.1f"),
-            "w_Lr_plf": NC("w_Lr (plf)", min_value=0.0, format="%.1f"),
-            "assembly_id": SC("Nailing / assembly", options=asm_ids, required=True),
-            "sides": SC("Sides", options=[1, 2], required=True),
-            "panel_type": SC("Panel", options=["OSB", "Plywood"], required=True)})
-    with t_chords:
-        chords = st.data_editor(base_chords, key=f"chords_{ver}", num_rows="fixed", use_container_width=True, column_config={
-            "n_posts": NC("Posts (n)", min_value=1, step=1, format="%d"),
-            "post_nominal": SC("Post", options=posts, required=True),
-            "species_group": SC("Species", options=species, required=True),
-            "grade": SC("Grade", options=grades, required=True),
-            "size_class": SC("Size class", options=classes, required=True),
-            "layout": SC("Geometry", options=forms.LAYOUTS, required=True,
-                         help="given: enter chord length and d. example: from the post count by the example "
-                              "layout (3 posts outboard of the rod, 6 in. rod gap)."),
-            "post_thickness_in": NC("Post t along wall (in)", min_value=0.0, step=0.5),
-            "chord_length_ft": NC("Chord length (ft)", min_value=0.0, step=0.125, format="%.3f"),
-            "d_arm_ft": NC("d arm (ft), blank = D2 default", min_value=0.0, step=0.05, format="%.2f"),
-            "d_out_of_plane_in": NC("d out-of-plane (in), blank = dressed", min_value=0.0, step=0.25),
-            "top_plates_in": NC("Top plates (in)", min_value=0.0, step=0.5),
-            "bottom_plate_in": NC("Bottom plate (in)", min_value=0.0, step=0.5)})
-    with t_ties:
-        st.caption("Rod system: fill the plate and rod fields. Hold-down: fill model or T_allow. Unused cells stay blank.")
-        ties = st.data_editor(base_ties, key=f"ties_{ver}", num_rows="fixed", use_container_width=True, column_config={
-            "kind": SC("Type", options=[forms.ROD, forms.HOLDDOWN], required=True),
-            "system_id": SC("Rod system", options=rod_ids),
-            "plate_width_in": NC("Plate w (in)", min_value=0.0, step=0.25),
-            "plate_length_in": NC("Plate l (in)", min_value=0.0, step=0.25),
-            "plate_thickness_in": NC("Plate t (in)", min_value=0.0, step=0.125, format="%.3f"),
-            "plate_Fy_psi": NC("Plate Fy (psi)", min_value=0.0, step=1000.0, format="%.0f"),
-            "slack_in": NC("Slack (in)", min_value=0.0, step=0.01, format="%.4f"),
-            "takeup_elongation_in": NC("Take-up (in)", min_value=0.0, step=0.005, format="%.4f"),
-            "rod_length_ft": NC("Rod length (ft), blank = story h", min_value=0.0, step=0.5),
-            "model": SC("Hold-down model", options=hd_models),
-            "T_allow_lb": NC("T_allow (lb)", min_value=0.0, step=100.0, format="%.0f"),
-            "delta_a_in": NC("Δ_a (in)", min_value=0.0, step=0.01, format="%.3f")})
+    # ---------------------------------------------------------------- right: capacities and checks
+    with col_r:
+        with card("right", f"Capacities and checks: story {sel}", "list"):
+            if not valid:
+                st.info("Checks appear once the inputs are valid.")
+            else:
+                st.markdown('<div class="note">Demand against capacity for the governing load case of each check '
+                            '(<span class="chip S">S</span> seismic, <span class="chip W">W</span> wind). Small text shows each '
+                            'case, and the source status of the numbers.</div>', unsafe_allow_html=True)
+                st.markdown(checks_panel_html(cs, sel), unsafe_allow_html=True)
+                for c in cs.cases:
+                    for ck in cs.results[c].stories[sel - 1].checks:
+                        if ck.status.value == "needs_input":
+                            st.warning(f"{LABEL[c]}: {ck.name}: {ck.message}")
+                        elif ck.category == "detailing" and ck.message:
+                            st.caption(f"{LABEL[c]}: {ck.message}")
 
-    # nailing status panel: what the library says about each chosen assembly
-    rows = []
-    by_id = {a.assembly_id: a for a in lib.shear_wall_assemblies}
-    for story, aid in loads["assembly_id"].items():
-        a = by_id.get(aid)
-        rows.append({"Story": story, "Assembly": aid, "Grade": a.panel_grade if a else "?",
-                     "Panel t": a.min_nominal_panel_thickness_label if a else "?",
-                     "Nail": a.nail_designation if a else "?", "Edge (in)": a.edge_nail_spacing_in if a else None,
-                     "Library status": a.status.value if a else "not in library"})
-    with st.expander("Nailing selection: library status per story"):
-        st.dataframe(pd.DataFrame(rows).set_index("Story"), use_container_width=True)
-
-# ------------------------------------------------------------------ run the engine
-g = {k: st.session_state[f"g_{k}"] for k in forms.GLOBAL_DEFAULTS}
-inp = forms.build_inputs(g, loads, chords, ties)
-res, run_error = None, None
-try:
-    res = dataclasses.replace(run_design(inp, lib), git_commit=git_commit())
-except Exception:  # noqa: BLE001  (surface engine bugs instead of a blank page)
-    run_error = traceback.format_exc()
-
-with st.sidebar:
-    st.download_button("Download inputs (.json)", inputs_to_json(inp, prefs), file_name="shearwall_inputs.json",
-                       mime="application/json", use_container_width=True,
-                       help="Includes the project's preferred materials.")
-
+    # ---------------------------------------------------------------- bottom: whole-stack summary
+    if valid:
+        with card("summary", "Wall stack summary", "layers", "colored by max DCR"):
+            ca, cb = st.columns([3, 2])
+            inp0 = cs.primary
+            dcrs = {i: cs.story_dcr(i)[0] for i in range(1, n + 1)}
+            force_lines = {}
+            notes = {}
+            for i in range(1, n + 1):
+                lines = []
+                fe, fw = float(fv(loads.at[i, "F_seismic_lb"])), float(fv(loads.at[i, "F_wind_lb"]))
+                if fe > 0:
+                    lines.append(f"E = {fe:,.0f} lb")
+                if fw > 0:
+                    lines.append(f"W = {fw:,.0f} lb")
+                force_lines[i] = lines or ["no force"]
+                gc = cs.story_governing_check(i)
+                case = cs.story_dcr(i)[1]
+                notes[i] = f"{(gc or '').split('.', 1)[-1]} ({SHORT.get(case, '')})" if gc else ""
+            with ca:
+                st.markdown(img_html(stack_svg(inp0, None, selected=sel, story_dcrs=dcrs, force_lines=force_lines,
+                                               notes=notes)), unsafe_allow_html=True)
+            with cb:
+                st.markdown('<div class="note">Max demand/capacity by story over both load cases. Green ≤ 0.90, amber '
+                            '0.90 to 1.00, red above 1.00, grey = needs input.</div>', unsafe_allow_html=True)
+                st.markdown(bars_html(cs, n), unsafe_allow_html=True)
+            st.markdown(section_header("Schedule", "list"), unsafe_allow_html=True)
+            st.markdown(schedule_html(cs, n, selected=sel), unsafe_allow_html=True)
+            st.markdown('<div class="eqline">v = c · V / b  ·  DCR = demand / capacity  ·  T = max(0, (c · M_OT − λ_D · M_R) / d)  ·  '
+                        'M_R = w_D · b² / 2  ·  c = ASD factor for the load case  ·  see the Calc trace tab for each step and its '
+                        'code reference</div>', unsafe_allow_html=True)
 
 # ------------------------------------------------------------------ auto-size: propose, then apply
 def on_apply_autosize() -> None:
     prop = st.session_state.pop("autosize", None)
     if prop:
-        apply_inputs(prop["result"].proposed)
+        apply_cases(prop["result"].proposed_cases)
 
 
 def fmt_dcr(x) -> str:
     return "-" if x is None else f"{x:.2f}"
 
 
-with tab_in:
-    st.subheader("Auto-size with preferred materials (strength checks)")
-    st.caption("For each story, proposes the lightest preferred nailing, chord posts and tie-down that pass shear, "
-               "chord compression and tension (capacity ascending). Post geometry follows the example layout "
-               "rule. Drift is checked and reported, not driven. Nothing changes until you apply.")
-    snapshot = inputs_to_json(inp, prefs)
-    runnable = res is not None and res.status is not OverallStatus.INVALID_INPUT
-    if st.button("Auto-size", disabled=not runnable, key="autosize_run"):
-        try:
-            st.session_state["autosize"] = {"result": autosize(inp, lib, prefs), "snapshot": snapshot}
-        except Exception:  # noqa: BLE001
-            st.error("Auto-size raised an error. Send this to the calc builder.")
-            st.code(traceback.format_exc())
-    prop = st.session_state.get("autosize")
-    if prop:
-        a = prop["result"]
-        stale = prop["snapshot"] != snapshot
-        if stale:
-            st.info("Inputs or preferred materials changed since this proposal; run Auto-size again.")
-        summary = []
-        for sp in a.stories:
-            row = {"Story": sp.story, "Result": sp.status}
-            for cat in ("shear", "compression", "rod", "holddown", "drift"):
-                if cat in sp.dcr_before or cat in sp.dcr_after:
-                    row[cat.capitalize()] = f"{fmt_dcr(sp.dcr_before.get(cat))} → {fmt_dcr(sp.dcr_after.get(cat))}"
-            row["Notes"] = "; ".join(sp.notes)
-            summary.append(row)
-        st.dataframe(pd.DataFrame(summary).set_index("Story"), use_container_width=True)
-        changes = [{"Story": sp.story, "Selection": c.field, "Current": c.current, "Proposed": c.proposed}
-                   for sp in a.stories for c in sp.changes]
-        if changes:
-            st.dataframe(pd.DataFrame(changes), use_container_width=True, hide_index=True)
-        else:
-            st.caption("The current selections are already the lightest preferred options that pass.")
-        st.button("Apply proposal", on_click=on_apply_autosize, type="primary", disabled=stale or not changes,
-                  key="autosize_apply")
-
-# ------------------------------------------------------------------ results
-with tab_res:
-    if run_error:
-        st.error("The design engine raised an error. Send this to the calc builder.")
-        st.code(run_error)
-    elif res.status is OverallStatus.INVALID_INPUT:
-        st.error("Fix these inputs before the engine will run checks:")
-        st.table(pd.DataFrame([{"Field": e.field, "Problem": e.message} for e in res.input_errors]))
-    else:
-        banner = {OverallStatus.PASS: st.success, OverallStatus.FAIL: st.error, OverallStatus.INCOMPLETE: st.warning}
-        label = {OverallStatus.PASS: "All checks pass", OverallStatus.FAIL: "One or more checks FAIL",
-                 OverallStatus.INCOMPLETE: "Incomplete: some checks need engineer input or component data"}
-        banner[res.status](label[res.status])
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Governing story", res.governing_story or "-")
-        m2.metric("Governing check", (res.governing_check or "-"))
-        m3.metric("Max DCR", "-" if res.max_dcr is None else f"{res.max_dcr:.3f}")
-        m4.metric("Unverified steps", len(res.unverified_steps))
-
-        left, right = st.columns([3, 2])
-        table = []
-        for s in res.stories:
-            row = {"Story": s.story}
-            for cat, lab in CATS:
-                chk = [c for c in s.checks if c.category == cat]
-                if not chk:
-                    row[lab] = "-"
-                    continue
-                c = chk[0]
-                row[lab] = {CheckStatus.NEEDS_INPUT: "needs input", CheckStatus.INFO: "info",
-                            CheckStatus.NOT_APPLICABLE: "n/a"}.get(c.status, f"{c.dcr:.2f}" if c.dcr is not None else "-")
-            row["Governing"] = (s.governing_id or "-").split(".", 1)[-1]
-            row["Max DCR"] = "-" if s.max_dcr is None else f"{s.max_dcr:.2f}"
-            table.append(row)
-        df = pd.DataFrame(table).set_index("Story")
-
-        def colour(v):
+with tab_mat:
+    with card("autosize", "Auto-size with preferred materials", "layers", "strength checks"):
+        st.caption("For each story, proposes the lightest preferred nailing, chord posts and tie-down that pass shear, "
+                   "chord compression and tension in every load case with a force (capacity ascending). Post geometry "
+                   "follows the example layout rule. Drift is checked and reported, not driven. Nothing changes until "
+                   "you apply.")
+        snapshot = cases_to_json(cases, prefs) if cases else ""
+        if st.button("Auto-size", disabled=not valid, key="autosize_run"):
             try:
-                x = float(v)
-            except (TypeError, ValueError):
-                return "background-color:#E4E7EB" if v == "needs input" else ""
-            return ("background-color:#F8CFCF" if x > 1 else "background-color:#FFF0C2" if x > 0.9
-                    else "background-color:#DFF3E4")
-
-        with left:
-            st.subheader("Demand / capacity by story")
-            st.dataframe(df.style.map(colour, subset=[lab for _, lab in CATS] + ["Max DCR"]), use_container_width=True)
-            st.caption("Green ≤ 0.90, amber 0.90 to 1.00, red above 1.00, grey = needs input. Story 1 is the bottom.")
-            if res.needs_input:
-                st.subheader("Needs engineer input")
-                st.dataframe(pd.DataFrame([{"Check": n.check_id, "Decision / data": n.decision, "Message": n.message}
-                                           for n in res.needs_input]), use_container_width=True, hide_index=True)
-        with right:
-            st.subheader("Wall stack")
-            b64 = base64.b64encode(stack_svg(inp, res).encode()).decode()
-            st.markdown(f'<img style="width:100%" src="data:image/svg+xml;base64,{b64}"/>', unsafe_allow_html=True)
+                st.session_state["autosize"] = {"result": autosize_cases(cases, lib, prefs), "snapshot": snapshot}
+            except Exception:  # noqa: BLE001
+                st.error("Auto-size raised an error. Send this to the calc builder.")
+                st.code(traceback.format_exc())
+        prop = st.session_state.get("autosize")
+        if prop:
+            a_res = prop["result"]
+            stale = prop["snapshot"] != snapshot
+            if stale:
+                st.info("Inputs or preferred materials changed since this proposal; run Auto-size again.")
+            summary = []
+            for sp in a_res.stories:
+                row = {"Story": sp.story, "Result": sp.status}
+                for cat in ("shear", "compression", "rod", "holddown", "drift"):
+                    if cat in sp.dcr_before or cat in sp.dcr_after:
+                        row[cat.capitalize()] = f"{fmt_dcr(sp.dcr_before.get(cat))} → {fmt_dcr(sp.dcr_after.get(cat))}"
+                row["Notes"] = "; ".join(sp.notes)
+                summary.append(row)
+            st.dataframe(pd.DataFrame(summary).set_index("Story"), width="stretch")
+            changes = [{"Story": sp.story, "Selection": c.field, "Current": c.current, "Proposed": c.proposed}
+                       for sp in a_res.stories for c in sp.changes]
+            if changes:
+                st.dataframe(pd.DataFrame(changes), width="stretch", hide_index=True)
+            else:
+                st.caption("The current selections are already the lightest preferred options that pass.")
+            st.button("Apply proposal", on_click=on_apply_autosize, type="primary", disabled=stale or not changes,
+                      key="autosize_apply")
 
 # ------------------------------------------------------------------ calc trace
 with tab_trace:
-    if res is None or res.status is OverallStatus.INVALID_INPUT:
+    if not valid:
         st.info("Run needs valid inputs first.")
     else:
-        story = st.selectbox("Story", [s.story for s in res.stories])
+        t1, t2 = st.columns(2)
+        tcase = t1.selectbox("Load case", cs.cases, key="trace_case", format_func=lambda c: LABEL[c])
+        res = cs.results[tcase]
+        story = t2.selectbox("Story", [s.story for s in res.stories], key="trace_story")
         render_eq = st.checkbox("Render equations (slower)", value=False)
 
         def show_steps(steps):
@@ -506,7 +681,7 @@ with tab_trace:
                                             "Equation": s.equation_latex, "Substitution": s.substitution,
                                             "Value": str(s.value), "Unit": s.unit, "Citation": s.citation,
                                             "Status": s.status, "Note": s.note} for s in steps]),
-                             use_container_width=True, hide_index=True)
+                             width="stretch", hide_index=True)
 
         for c in res.stories[story - 1].checks:
             dcr = "" if c.dcr is None else f" · DCR {c.dcr:.3f}"
@@ -518,29 +693,100 @@ with tab_trace:
         with st.expander("Stack: load combinations, story forces, chord forces"):
             show_steps(res.stack_steps)
 
+# ------------------------------------------------------------------ engineering basis
+def read_doc(name: str) -> str | None:
+    f = repo_root() / "docs" / name
+    try:
+        return f.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
+with tab_basis:
+    st.markdown(section_header("Editions", "layers"), unsafe_allow_html=True)
+    st.markdown(" ".join(f'<span class="pill">{e}</span>' for e in EDITIONS), unsafe_allow_html=True)
+
+    st.markdown(section_header("Code factors used by the checks", "list", "src/design/factors.py"), unsafe_allow_html=True)
+    st.caption("Every factor with its value, citation and source status. 'memory' means taken from the WoodWorks example and "
+               "not yet checked against the standard (see Items to verify).")
+    frows = [{"Factor": k, "Value": v.value, "Citation": v.citation, "Status": v.status}
+             for k, v in vars(code_factors).items() if isinstance(v, code_factors.Factor)]
+    frows += [{"Factor": f"C_F (Fc) · {sp} {gr} {nom}", "Value": v.value, "Citation": v.citation, "Status": v.status}
+              for (sp, gr, nom), v in getattr(code_factors, "_SIZE_FACTOR_FC", {}).items()]
+    st.dataframe(pd.DataFrame(frows), width="stretch", hide_index=True)
+
+    if valid:
+        st.markdown(section_header("Load combinations and ASD factors", "arrows", "src/design/combos.py"), unsafe_allow_html=True)
+        for c in cs.cases:
+            steps = [x for x in cs.results[c].stack_steps if x.id.startswith("combo.")]
+            with st.expander(f"{LABEL[c]}: {len(steps)} combination steps", expanded=(c == cs.cases[0])):
+                st.dataframe(pd.DataFrame([{"Step": x.id, "Name": x.name, "Symbol": x.symbol, "Equation": x.equation_latex,
+                                            "Value": str(x.value), "Citation": x.citation, "Status": x.status,
+                                            "Note": x.note} for x in steps]), width="stretch", hide_index=True)
+        st.markdown(section_header("Stack forces, overturning and chord forces", "ruler", "src/analysis · src/design/chords.py"),
+                    unsafe_allow_html=True)
+        for c in cs.cases:
+            steps = [x for x in cs.results[c].stack_steps if not x.id.startswith("combo.")]
+            with st.expander(f"{LABEL[c]}: {len(steps)} steps (all stories)"):
+                st.dataframe(pd.DataFrame([{"Step": x.id, "Name": x.name, "Symbol": x.symbol, "Equation": x.equation_latex,
+                                            "Substitution": x.substitution, "Value": str(x.value), "Unit": x.unit,
+                                            "Citation": x.citation, "Status": x.status} for x in steps]),
+                             width="stretch", hide_index=True)
+    st.markdown(section_header("Component tables", "grid", "src/design/components"), unsafe_allow_html=True)
+    st.dataframe(pd.DataFrame(lib.status_counts()).T.fillna(0).astype(int), width="stretch")
+    doc = read_doc("design-engine.md")
+    if doc:
+        with st.expander("Design engine documentation (docs/design-engine.md)"):
+            st.markdown(doc)
+
 # ------------------------------------------------------------------ items to verify
 with tab_verify:
     st.subheader("Component library status")
-    counts = pd.DataFrame(lib.status_counts()).T.fillna(0).astype(int)
-    st.dataframe(counts, use_container_width=True)
-    if res is not None and res.status is not OverallStatus.INVALID_INPUT:
-        st.subheader("Component rows used with status 'memory'")
-        st.write(list(res.component_items_to_verify) or "none")
-        st.subheader("Calculation steps not verified or statics")
-        st.write(f"{len(res.unverified_steps)} steps")
-        if res.unverified_steps:
-            st.dataframe(pd.DataFrame([{"Step": s.id, "Name": s.name, "Citation": s.citation, "Status": s.status}
-                                       for s in res.unverified_steps]), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(lib.status_counts()).T.fillna(0).astype(int), width="stretch")
+    items = lib.items_to_verify()
+    st.write(f"{len(items)} component rows are not yet verified.")
+    if valid:
+        for c in cs.cases:
+            res = cs.results[c]
+            st.subheader(f"{LABEL[c]}: component rows used with status 'memory'")
+            st.write(list(res.component_items_to_verify) or "none")
+            st.write(f"{len(res.unverified_steps)} calculation steps are not verified or statics")
+            if res.unverified_steps:
+                with st.expander(f"{LABEL[c]}: list the steps"):
+                    st.dataframe(pd.DataFrame([{"Step": s.id, "Name": s.name, "Citation": s.citation, "Status": s.status}
+                                               for s in res.unverified_steps]), width="stretch", hide_index=True)
+    doc = read_doc("engine-verification-checklist.md")
+    if doc:
+        with st.expander("Engine verification checklist (docs/engine-verification-checklist.md)"):
+            st.markdown(doc)
 
 # ------------------------------------------------------------------ report
 with tab_report:
-    st.info("Interim downloads. The report generator (docs/spec-io.md §6) will replace the Markdown file.")
-    if res is None or res.status is OverallStatus.INVALID_INPUT:
+    st.markdown(section_header("Calculation report", "list", "src/report"), unsafe_allow_html=True)
+    if not valid:
         st.write("Run needs valid inputs first.")
     else:
-        st.download_button("Calc trace (.md)", result_to_markdown(res), file_name="shearwall_calc_trace.md",
-                           mime="text/markdown")
-        st.download_button("Full result (.json)", result_to_json(res), file_name="shearwall_result.json",
-                           mime="application/json")
-    st.download_button("Inputs (.json)", inputs_to_json(inp, prefs), file_name="shearwall_inputs.json",
-                       mime="application/json", key="dl_inputs_report")
+        st.markdown('<div class="note">The report generator renders the engine result: header, inputs, statics and free-body '
+                    'diagrams, step-by-step calculations with equations and code references, summary, and the items to '
+                    'verify. One report is produced per load case. Open the HTML file and print it to PDF from the browser. '
+                    'Equations use KaTeX from a CDN; if your network blocks it, the LaTeX source shows instead.</div>',
+                    unsafe_allow_html=True)
+        r_choice = st.selectbox("Report for", reports.choices(cs), key="report_for")
+        rcase = reports.pick_case(cs, r_choice)
+        html = reports.html_report(cs, rcase)
+        md = reports.markdown_report(cs, rcase)
+        stem = reports.file_stem(cs, rcase)
+        b1, b2, b3, b4 = st.columns(4)
+        b1.download_button("Report (HTML)", html, file_name=f"{stem}_report.html", mime="text/html", key="dl_html",
+                           width="stretch", type="primary")
+        b2.download_button("Report (Markdown)", md, file_name=f"{stem}_report.md", mime="text/markdown", key="dl_md",
+                           width="stretch")
+        b3.download_button("Full result (.json)", result_to_json(cs.results[rcase]), file_name=f"{stem}_result.json",
+                           mime="application/json", key="dl_json", width="stretch")
+        b4.download_button("Inputs (.json)", cases_to_json(cases, prefs), file_name="shearwall_inputs.json",
+                           mime="application/json", key="dl_inputs_report", width="stretch")
+        st.caption(f"Governing case for the whole stack: {LABEL[reports.pick_case(cs, reports.GOV_AUTO)]}. "
+                   f"Showing the {LABEL[rcase].lower()} report.")
+        if st.toggle("Preview the report here", key="report_preview"):
+            import streamlit.components.v1 as components
+            components.html(html, height=900, scrolling=True)

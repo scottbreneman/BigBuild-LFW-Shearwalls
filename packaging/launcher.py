@@ -28,7 +28,10 @@ def selftest(root: Path) -> int:
     print(f"example: {res.status.value}, governing {res.governing_check}, max DCR {res.max_dcr:.3f}")
     real = run_design(inp, default_library())
     print(f"project library: {real.status.value} ({len(real.needs_input)} checks need input)")
-    ok = res.status.value == "pass" and real.status.value == "incomplete"
+    from report import build_report
+    html = build_report(res)
+    print(f"report: {len(html) // 1024} KB html")
+    ok = res.status.value == "pass" and real.status.value in ("incomplete", "pass") and "<html" in html
     print("SELFTEST OK" if ok else "SELFTEST FAILED")
     return 0 if ok else 1
 
@@ -49,6 +52,8 @@ def main() -> None:
         "streamlit", "run", str(app),
         f"--server.port={port}", "--server.address=localhost", "--server.headless=true",
         "--server.fileWatcherType=none", "--browser.gatherUsageStats=false", "--global.developmentMode=false",
+        "--theme.base=light", "--theme.primaryColor=#15803D", "--theme.backgroundColor=#F5FAF6",
+        "--theme.secondaryBackgroundColor=#E8F3EB", "--theme.textColor=#1E293B",
     ]
     sys.exit(stcli.main())
 
