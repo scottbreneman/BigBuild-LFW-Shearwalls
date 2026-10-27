@@ -153,6 +153,7 @@ Record each answer here with initials, then update the status of the affected ro
 - [ ] D6 Drift: load level for v in C1 (ASD or strength) and the story-drift definition. Seismic follows the example (strength level, floor to floor). **Wind (owner, 2026-10-27): check against a user-provided drift limit; forces 1.0W and 0.6D + 1.0W.** **Rotation carried up (owner, 2026-10-27): optional, by rigid-body geometry (C7), not the SEB spreadsheet's d / H form.** 4-term deflection, no-take-up shrinkage and cumulative chord deformation are options (C1a, C5, C6); the default stays the example's 3-term floor-to-floor method.
 - [ ] D7 Tolerances for comparing results with the answer key.
 - [x] D8 Applied story forces are supplied at **strength level**; the engine applies 0.7E_h / 0.6W and the drift combinations (owner, 2026-10-27; matches example Tables 3.4 and 4.4).
+- [x] D9 Plywood ply count for the 4-term G_v t_v (Commentary Table C4.2.3A): assume **3-ply** — the lowest tabulated G_v t_v, so conservative for drift — until a ply-count input is added; 4- and 5-ply values are recorded in each plywood row's notes in `sheathing_panels.csv` (VL, 2026-10-27).
 
 ## 5. Results
 
