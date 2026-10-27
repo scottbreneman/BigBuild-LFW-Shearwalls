@@ -17,6 +17,17 @@ _FORCE = "#b00020"
 _REACT = "#0b6b3a"
 _DIM = "#666666"
 
+# Demand/capacity colour scale. The report defers to the stack graphic in the Streamlit app
+# (src/ui/graphic.py) so the screen and the report colour the same design the same way:
+# green at or below 0.90, amber 0.90 to 1.00, red above 1.00, grey where a check needs input.
+from ui.graphic import AMBER, GREEN, GREY, RED, STROKE, dcr_colour  # noqa: E402
+
+
+def dcr_color(dcr: float | None, incomplete: bool = False) -> tuple[str, str]:
+    """(fill, stroke) for a demand/capacity ratio, on the app's scale."""
+    fill = dcr_colour(dcr, incomplete)
+    return fill, STROKE[fill]
+
 
 def _label(x: float, y: float, *parts, anchor: str = "start", size: float = 12, bold: bool = False,
            fill: str = _INK) -> str:
@@ -59,7 +70,7 @@ def stack_fbd_svg(result: DesignResult) -> str:
     wall_w = b * scale
     x0, top = 200.0, 56.0
     y_base = top + total_h * scale
-    width, height = 900, y_base + 134
+    width, height = 900, y_base + 172
 
     elev = [0.0]  # elev[j] = elevation of the top of story j above the base of story 1
     for h in heights:
@@ -84,13 +95,17 @@ def stack_fbd_svg(result: DesignResult) -> str:
                         "named at the right.", size=11, fill=_DIM),
     ]
 
-    # Wall panels, one per story.
+    # Wall panels, one per story, filled by the story's governing demand/capacity ratio.
     for j in range(1, n + 1):
         y_top, y_bot = y(elev[j]), y(elev[j - 1])
+        story = result.stories[j - 1] if j <= len(result.stories) else None
+        d = story.max_dcr if story else None
+        fill, stroke = dcr_color(d)
         parts.append(f'<rect x="{x0:.1f}" y="{y_top:.1f}" width="{wall_w:.1f}" height="{y_bot - y_top:.1f}" '
-                     f'fill="#f3f6f9" stroke="#333" stroke-width="1.5"/>')
-        parts.append(_label(x0 + wall_w / 2, (y_top + y_bot) / 2 + 4, f"Story {j}", anchor="middle",
-                            size=13, fill=_DIM))
+                     f'fill="{fill}" stroke="{stroke}" stroke-width="1.5"/>')
+        text = f"Story {j} – D:C = {d:.2f}" if d is not None else f"Story {j} – needs input"
+        parts.append(_label(x0 + wall_w / 2, (y_top + y_bot) / 2 + 4, text, anchor="middle",
+                            size=13, bold=True, fill=_INK))
 
     # Applied story forces at the top of each story, with the elevation dimension on the right.
     x_dim = x0 + wall_w + 24
@@ -149,6 +164,20 @@ def stack_fbd_svg(result: DesignResult) -> str:
                  f'stroke-width="1" marker-start="url(#arrD)" marker-end="url(#arrD)"/>')
     parts.append(_label(x0 + wall_w / 2, yd + 16, f"b = {b:,.1f} ft", anchor="middle", size=12, fill=_DIM))
 
+    parts.append(_legend(24.0, y_base + 142))
     parts.append("</svg>")
     return "\n".join(parts)
+
+
+def _legend(x: float, y: float) -> str:
+    """Colour key, matching the app's caption: green <= 0.90, amber 0.90 to 1.00, red above 1.00."""
+    bands = ((GREEN, "\u2264 0.90"), (AMBER, "0.90 to 1.00"), (RED, "above 1.00"), (GREY, "needs input"))
+    out = [_label(x, y - 6, "Fill colour: governing D:C of the story", size=10.5, fill=_DIM)]
+    cx = x
+    for fill, text in bands:
+        out.append(f'<rect x="{cx:.1f}" y="{y:.1f}" width="16" height="11" fill="{fill}" '
+                   f'stroke="{STROKE[fill]}" stroke-width="0.6"/>')
+        out.append(_label(cx + 21, y + 9.5, text, size=10, fill=_DIM))
+        cx += 26 + len(text) * 5.6
+    return "\n".join(out)
 

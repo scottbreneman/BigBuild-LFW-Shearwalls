@@ -13,7 +13,7 @@ from html import escape
 from design.trace import Step
 
 from .model import Document, Figure, Paragraph, StepTable, Subheading, Table
-from .refs import example_label, parse_citation
+from .refs import citation_for, example_label
 from .steps import result_text, tex_for
 
 KATEX_VERSION = "0.16.11"
@@ -34,11 +34,15 @@ caption { text-align: left; font-size: .85rem; color: #444; padding-bottom: .25r
 th, td { border: 1px solid #bbb; padding: .3rem .5rem; text-align: left; vertical-align: top; }
 th { background: #eef1f4; }
 td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.band-a td { background: #fbfcfd; }
+tr.band-b td { background: #edf1f6; }
 tr.pass td { background: #f1f9f1; }
+tr.info td { background: #f4f4f4; }
+/* After the bands: a failing or incomplete check must stay visible through the story banding. */
 tr.fail td { background: #fdecea; }
 tr.needs-input td { background: #fff7e0; }
-tr.info td { background: #f4f4f4; }
 tr.governing td { font-weight: 700; }
+td[rowspan] { vertical-align: middle; text-align: center; font-weight: 600; }
 table.steps { font-size: .82rem; }
 table.steps td.eq { min-width: 12rem; }
 table.steps td.res { white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -123,18 +127,36 @@ def _table(t: Table) -> str:
         out.append(f"<caption>{escape(t.caption)}</caption>")
     out.append("<thead><tr>" + "".join(f"<th>{escape(h)}</th>" for h in t.headers) + "</tr></thead>")
     out.append("<tbody>")
+    spans = _spans(t)
     for i, row in enumerate(t.rows):
         cls = t.row_classes[i] if t.row_classes else ""
         tr = f' class="{escape(cls, quote=True)}"' if cls else ""
-        cells = "".join(_cell(c, j, t) for j, c in enumerate(row))
+        cells = "".join(_cell(c, j, t, spans.get((i, j))) for j, c in enumerate(row)
+                        if spans.get((i, j)) != 0)  # 0 = covered by the rowspan above
         out.append(f"<tr{tr}>{cells}</tr>")
     out += ["</tbody>", "</table>"]
     return "\n".join(out)
 
 
-def _cell(text: str, j: int, t: Table) -> str:
+def _spans(t: Table) -> dict[tuple[int, int], int]:
+    """{(row, col): rowspan} for the first row of each run in ``span_col``; 0 for the rows it covers."""
+    if t.span_col is None:
+        return {}
+    j, out, start = t.span_col, {}, 0
+    for i in range(1, len(t.rows) + 1):
+        if i == len(t.rows) or t.rows[i][j] != t.rows[start][j]:
+            out[(start, j)] = i - start
+            for k in range(start + 1, i):
+                out[(k, j)] = 0
+            start = i
+    return out
+
+
+def _cell(text: str, j: int, t: Table, span: int | None = None) -> str:
     body = _symbol(text) if j in t.symbol_cols else escape(text)
-    return f'<td class="num">{body}</td>' if j in t.align_right else f"<td>{body}</td>"
+    attrs = f' rowspan="{span}"' if span and span > 1 else ""
+    cls = ' class="num"' if j in t.align_right else ""
+    return f"<td{cls}{attrs}>{body}</td>"
 
 
 def _equation(step: Step) -> str:
@@ -146,7 +168,7 @@ def _equation(step: Step) -> str:
 
 
 def _reference(step: Step, *, include_basis: bool = True) -> str:
-    c = parse_citation(step.citation)
+    c = citation_for(step)
     out = [f'<div class="ref-code">{escape(r)}</div>' for r in c.code]
     out += [f'<div class="ref-ex">{escape(example_label(r))}</div>' for r in c.example]
     if include_basis:

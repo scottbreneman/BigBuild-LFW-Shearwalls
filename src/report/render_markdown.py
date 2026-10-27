@@ -68,9 +68,9 @@ def _step_table(t: StepTable) -> list[str]:
     for s in t.steps:
         name = f"{s.name} ({s.symbol})" if s.symbol else s.name
         if t.mode == "catalog":
-            cells = (name, _equation(s), reference_text(s.citation), s.status)
+            cells = (name, _equation(s), reference_text(s), s.status)
         else:
-            cells = (name, _equation(s), s.substitution, result_text(s), reference_text(s.citation), s.status)
+            cells = (name, _equation(s), s.substitution, result_text(s), reference_text(s), s.status)
         lines.append("| " + " | ".join(_cell(c) for c in cells) + " |")
     lines.append("")
     return lines
