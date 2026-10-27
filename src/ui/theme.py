@@ -18,7 +18,7 @@ CSS = """
 --sans:Inter,"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;}
 html,body,[class*="stApp"]{font-family:var(--sans);color:var(--ink);}
 .stApp{background:#f5faf6;}
-.block-container{max-width:1180px;padding-top:1.6rem;}
+.block-container{max-width:100%;padding:1.6rem 2.25rem 3rem;}  /* use the full window width; ~36 px side margins */
 header[data-testid="stHeader"]{background:transparent;}
 /* page header */
 .ws-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;}
