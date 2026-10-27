@@ -184,3 +184,19 @@ def test_lumber_section_properties_are_rectangle_formulas():
     assert s.Ix_in4 == pytest.approx(1.5 * 5.5**3 / 12)
     assert s.Sy_in3 == pytest.approx(5.5 * 1.5**2 / 6)
     assert s.Iy_in4 == pytest.approx(5.5 * 1.5**3 / 12)
+
+
+def test_computed_section_properties_match_table_1b(lib):
+    """Computed rectangle properties agree with the Table 1B values entered on each row
+    (to the table's printed precision)."""
+    for s in lib.lumber_sizes:
+        pairs = [
+            (s.area_in2, s.table_area_in2),
+            (s.Sx_in3, s.table_Sxx_in3),
+            (s.Ix_in4, s.table_Ixx_in4),
+            (s.Sy_in3, s.table_Syy_in3),
+            (s.Iy_in4, s.table_Iyy_in4),
+        ]
+        for computed, tabulated in pairs:
+            if tabulated is not None:
+                assert computed == pytest.approx(tabulated, rel=5e-3), s.nominal
