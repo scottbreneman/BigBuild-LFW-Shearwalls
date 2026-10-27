@@ -22,15 +22,17 @@ ensure_paths()
 
 import pandas as pd  # noqa: E402
 import streamlit as st  # noqa: E402
+import streamlit.components.v1 as components  # noqa: E402
 
 from design.engine import run_design  # noqa: E402
 from design.library import default_library  # noqa: E402
 from design.result import EDITIONS, OverallStatus  # noqa: E402
 from design.trace import CheckStatus  # noqa: E402
+from report import build_markdown, build_report  # noqa: E402
 from ui import forms  # noqa: E402
 from ui.graphic import stack_svg  # noqa: E402
 from ui.io import inputs_from_json, inputs_to_json  # noqa: E402
-from ui.trace_export import DISCLAIMER, result_to_json, result_to_markdown  # noqa: E402
+from ui.trace_export import DISCLAIMER, result_to_json  # noqa: E402
 
 SRC_EXAMPLE = "WoodWorks example components (answer-key fixtures)"
 SRC_PROJECT = "Project component library (src/design/components/data)"
@@ -329,13 +331,25 @@ with tab_verify:
 
 # ------------------------------------------------------------------ report
 with tab_report:
-    st.info("Interim downloads. The report generator (docs/spec-io.md §6) will replace the Markdown file.")
-    if res is None or res.status is OverallStatus.INVALID_INPUT:
+    if run_error:
+        st.error("The design engine raised an error, so there is nothing to report. See the Results tab.")
+    elif res is None or res.status is OverallStatus.INVALID_INPUT:
         st.write("Run needs valid inputs first.")
     else:
-        st.download_button("Calc trace (.md)", result_to_markdown(res), file_name="shearwall_calc_trace.md",
-                           mime="text/markdown")
-        st.download_button("Full result (.json)", result_to_json(res), file_name="shearwall_result.json",
-                           mime="application/json")
+        st.subheader("Calculation report")
+        st.caption("Inputs, statics, every equation with its code reference and source status, the checks, and "
+                   "the items an engineer still has to verify. Open the HTML file and print to PDF from the "
+                   "browser for a paper copy.")
+        report_html = build_report(res)
+        c1, c2, c3 = st.columns(3)
+        c1.download_button("Report (.html)", report_html, file_name="shearwall_report.html", mime="text/html",
+                           use_container_width=True)
+        c2.download_button("Report (.md)", build_markdown(res), file_name="shearwall_report.md",
+                           mime="text/markdown", use_container_width=True)
+        c3.download_button("Full result (.json)", result_to_json(res), file_name="shearwall_result.json",
+                           mime="application/json", use_container_width=True)
+        if st.checkbox("Preview the report here", value=False, key="report_preview",
+                       help="Equations are typeset by KaTeX from a CDN; offline they show as LaTeX source."):
+            components.html(report_html, height=800, scrolling=True)
     st.download_button("Inputs (.json)", inputs_to_json(inp), file_name="shearwall_inputs.json",
                        mime="application/json", key="dl_inputs_report")
