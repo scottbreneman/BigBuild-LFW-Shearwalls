@@ -391,3 +391,14 @@ def test_report_builds_even_when_inputs_are_invalid():
     res = run_design(dataclasses.replace(example_inputs(), b_ft=-1.0), example_library())
     assert res.status is OverallStatus.INVALID_INPUT
     assert "Fix these inputs before the engine will run checks" in build_report(res)
+
+
+def test_all_stories_tables_list_the_top_story_first_and_keep_values_on_their_story():
+    at = _app().run()
+    before = at.session_state["base_frames"][0]["F_seismic_lb"].to_dict()
+    at.segmented_control(key="edit_mode").set_value("All stories").run()
+    assert not at.exception, at.exception
+    shown = [d.value for d in at.dataframe if "F_seismic_lb" in d.value.columns]
+    assert shown and list(shown[0].index) == [5, 4, 3, 2, 1]
+    after = at.session_state["base_frames"][0]["F_seismic_lb"].to_dict()
+    assert after == before  # reversed display, values still on their own story

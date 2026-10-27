@@ -505,12 +505,12 @@ with tab_design:
     edit_all = st.session_state["edit_mode"] == ALL
     if edit_all:
         col_l = col_m = col_r = None
-        with card("all", "All stories", "list", "edit like a spreadsheet · story 1 is the bottom"):
+        with card("all", "All stories", "list", "edit like a spreadsheet · top story first"):
             NC, SC = st.column_config.NumberColumn, st.column_config.SelectboxColumn
             e_loads, e_posts, e_ties = st.tabs([":material/south: Loads and nailing", ":material/view_column: Chord posts",
                                                 ":material/link: Tie-downs"])
             with e_loads:
-                ed_l = st.data_editor(loads, key=f"tbl_loads_{ver}", num_rows="fixed", column_config={
+                ed_l = st.data_editor(loads.iloc[::-1], key=f"tbl_loads_{ver}", num_rows="fixed", column_config={
                     "h_ft": NC("h (ft)", min_value=0.0, step=0.5, format="%.2f"),
                     "F_seismic_lb": NC("Seismic F (lb)", min_value=0.0, step=50.0, format="%.0f"),
                     "F_wind_lb": NC("Wind F (lb)", min_value=0.0, step=50.0, format="%.0f"),
@@ -522,7 +522,7 @@ with tab_design:
                     "sides": SC("Sides", options=[1, 2], required=True),
                     "panel_type": SC("Panel", options=["OSB", "Plywood"], required=True)})
             with e_posts:
-                ed_c = st.data_editor(chords, key=f"tbl_chords_{ver}", num_rows="fixed", column_config={
+                ed_c = st.data_editor(chords.iloc[::-1], key=f"tbl_chords_{ver}", num_rows="fixed", column_config={
                     "n_posts": NC("Posts", min_value=1, step=1, format="%d"),
                     "post_nominal": SC("Post", options=post_opts, required=True),
                     "species_group": SC("Species", options=species_opts, required=True),
@@ -538,7 +538,7 @@ with tab_design:
                     "top_plates_in": NC("Top plates (in)", min_value=0.0, step=0.5),
                     "bottom_plate_in": NC("Bottom plate (in)", min_value=0.0, step=0.5)})
             with e_ties:
-                ed_t = st.data_editor(ties, key=f"tbl_ties_{ver}", num_rows="fixed", column_config={
+                ed_t = st.data_editor(ties.iloc[::-1], key=f"tbl_ties_{ver}", num_rows="fixed", column_config={
                     "kind": SC("Type", options=[forms.ROD, forms.HOLDDOWN], required=True),
                     "system_id": SC("Rod system", options=rod_opts),
                     "plate_width_in": NC("Plate w (in)", min_value=0.0, step=0.25),
@@ -556,7 +556,7 @@ with tab_design:
                     "delta_a_in": NC("Δ_a (in)", min_value=0.0, step=0.01, format="%.3f")})
             for frame, edited in ((loads, ed_l), (chords, ed_c), (ties, ed_t)):
                 for c in frame.columns:
-                    frame[c] = edited[c]
+                    frame[c] = edited[c].reindex(frame.index)  # editors show top story first; align by story
             st.caption("Rod system rows use the plate and rod columns; hold-down rows use model or T_allow. Chord length "
                        "and d are ignored where Geometry = example (layout rule).")
     else:
