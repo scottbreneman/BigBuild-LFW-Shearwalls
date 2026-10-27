@@ -43,9 +43,14 @@ Each table shows the library row's values and its status. An empty selection mea
 
 ## Component data source
 
-The sidebar offers two sources. *WoodWorks example components* are the answer-key fixtures in
-`tests/fixtures/woodworks_components` (rows marked `memory`). *Project component library* is
-`src/design/components/data`; until engineers fill and verify rows, checks report **needs input**, not a pass.
+The sidebar offers two sources.
+
+- *Project component library* (the default) is `src/design/components/data`: the team's SDPWS Table 4.3A assemblies, NDS lumber values, rods and hold-downs.
+  - The app opens on the WoodWorks example with its component ids mapped to these tables (`woodworks_example.production_inputs()`; the example passes on them, see `tests/test_production_library_example.py`).
+  - It also opens with the *WoodWorks example materials (project library)* preset.
+- *WoodWorks example components* are the small answer-key fixtures in `tests/fixtures/woodworks_components` (rows marked `memory`) that the tests use.
+
+Switching the source loads that source's default preset. Inputs are left as entered; use *Load WoodWorks 5-story example* to reload the example with the right ids. Rows still pending report **needs input**, not a pass.
 
 ## Windows app (not yet verified on Windows)
 

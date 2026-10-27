@@ -68,12 +68,26 @@ def test_app_blank_length_is_reported_not_crashed():
     assert any("Fix these inputs" in e.value for e in at.error)
 
 
-def test_app_project_library_is_incomplete_not_pass():
+PROJECT = "Project component library (src/design/components/data)"
+FIXTURES = "WoodWorks example components (answer-key fixtures)"
+
+
+def test_app_defaults_to_the_project_library():
     at = _app().run()
-    at.radio(key="lib_source").set_value("Project component library (src/design/components/data)").run()
+    assert at.radio(key="lib_source").value == PROJECT
+    assert at.session_state["prefs"].name == "WoodWorks example materials (project library)"
+    assert any("All checks pass" in s.value for s in at.success)  # the example on the production tables
+
+
+def test_app_fixture_source_loads_its_own_example_and_preset():
+    at = _app().run()
+    at.radio(key="lib_source").set_value(FIXTURES).run()
+    assert at.session_state["prefs"].name == "WoodWorks example (answer-key fixtures)"
+    next(b for b in at.button if b.label == "Load WoodWorks 5-story example").click().run()
     assert not at.exception, at.exception
-    assert not any("All checks pass" in s.value for s in at.success)
-    assert any("Incomplete" in w.value for w in at.warning)
+    assert any("All checks pass" in s.value for s in at.success)
+    loads, _, _ = at.session_state["base_frames"]
+    assert all(a.startswith("EX-") for a in loads["assembly_id"])
 
 
 # --- preferred materials and auto-size -----------------------------------------------------------

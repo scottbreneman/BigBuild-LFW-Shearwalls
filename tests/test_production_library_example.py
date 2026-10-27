@@ -8,37 +8,12 @@ The small shear differences come from the fixture's back-calculated v_n (868 plf
 versus the tabulated 870 plf.
 """
 
-import dataclasses
-
 import pytest
 
 from design.engine import run_design
 from design.result import OverallStatus
 from woodworks_example import inputs, library
-
-FIXTURE_TO_PRODUCTION = {
-    "EX-OSB-15/32-10dc-": "WSP-SH-15/32-10dc-",
-    "EX-F1554-36-": "F1554-36-",
-}
-
-
-def _remap(value: str) -> str:
-    for old, new in FIXTURE_TO_PRODUCTION.items():
-        if value.startswith(old):
-            return new + value[len(old):]
-    return value
-
-
-def _production_inputs():
-    inp = inputs()
-    stories = []
-    for s in inp.stories:
-        changes = {"assembly_id": _remap(s.assembly_id)}
-        td = getattr(s, "tiedown", None)
-        if td is not None and hasattr(td, "system_id"):
-            changes["tiedown"] = dataclasses.replace(td, system_id=_remap(td.system_id))
-        stories.append(dataclasses.replace(s, **changes))
-    return dataclasses.replace(inp, stories=tuple(stories))
+from woodworks_example import production_inputs as _production_inputs  # fixture ids -> production ids
 
 
 def test_production_library_reproduces_woodworks_example():

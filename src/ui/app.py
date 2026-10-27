@@ -51,9 +51,10 @@ def get_library(source: str):
     return default_library()
 
 
-def example_inputs():
+def example_inputs(source: str):
+    """The WoodWorks example, with component ids for the chosen data source."""
     import woodworks_example as ex
-    return ex.inputs()
+    return ex.inputs() if source == SRC_EXAMPLE else ex.production_inputs()
 
 
 def shipped_presets() -> dict[str, Path]:
@@ -67,8 +68,12 @@ def shipped_presets() -> dict[str, Path]:
     return out
 
 
-def example_preset() -> MaterialPreferences:
-    f = repo_root() / "presets" / "woodworks-example.json"
+DEFAULT_PRESET = {SRC_PROJECT: "woodworks-example-production.json", SRC_EXAMPLE: "woodworks-example.json"}
+
+
+def default_preset(source: str) -> MaterialPreferences:
+    """The shipped preset matching a data source (the example's materials in that library)."""
+    f = repo_root() / "presets" / DEFAULT_PRESET[source]
     return MaterialPreferences.from_json(f.read_text(encoding="utf-8")) if f.exists() else MaterialPreferences()
 
 
@@ -93,24 +98,32 @@ def on_resize() -> None:
 
 
 def on_load_example() -> None:
-    apply_inputs(example_inputs())
-    st.session_state["lib_source"] = SRC_EXAMPLE
+    source = st.session_state["lib_source"]
+    apply_inputs(example_inputs(source))
+    apply_prefs(default_preset(source))
+
+
+def on_source_change() -> None:
+    """A different library has different ids: load its matching preset (inputs are left as entered)."""
+    apply_prefs(default_preset(st.session_state["lib_source"]))
 
 
 if "base_frames" not in st.session_state:
-    apply_inputs(example_inputs())
-    st.session_state["lib_source"] = SRC_EXAMPLE
+    st.session_state["lib_source"] = SRC_PROJECT
+    apply_inputs(example_inputs(SRC_PROJECT))
 if "prefs" not in st.session_state:
-    apply_prefs(example_preset())
+    apply_prefs(default_preset(st.session_state["lib_source"]))
 
 # ------------------------------------------------------------------ sidebar
 with st.sidebar:
     st.header("Project")
     st.text_input("Project name", key="g_project_name")
-    st.radio("Component data", [SRC_EXAMPLE, SRC_PROJECT], key="lib_source",
-             help="The project library is mostly 'pending' until engineers fill and verify it; checks then report "
-                  "'needs input' instead of using unchecked numbers.")
-    st.button("Load WoodWorks 5-story example", on_click=on_load_example, use_container_width=True)
+    st.radio("Component data", [SRC_PROJECT, SRC_EXAMPLE], key="lib_source", on_change=on_source_change,
+             help="Project library: the team's component tables (SDPWS Table 4.3A, NDS, rods, hold-downs). "
+                  "Answer-key fixtures: the small set transcribed from the WoodWorks example, used by the tests. "
+                  "Rows still 'pending' report 'needs input' instead of using unchecked numbers.")
+    st.button("Load WoodWorks 5-story example", on_click=on_load_example, use_container_width=True,
+              help="Loads the example with component ids for the selected data source.")
     up = st.file_uploader("Load inputs (.json)", type="json")
     if up is not None:
         marker = (up.name, up.size)

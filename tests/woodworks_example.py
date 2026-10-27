@@ -10,6 +10,7 @@ at its top, so story 5 is its "Roof" wall.
 Values come from example Tables 3.4, 3.5, 3.6, 3.7, 3.9, 3.11, 3.12, 3.17A and §3.1.
 """
 
+import dataclasses
 from pathlib import Path
 
 from design.components import load_library
@@ -50,3 +51,31 @@ def inputs(**overrides) -> DesignInputs:
                 risk_category="II", sdc="D", project_name="WoodWorks five-story example")  # §3.1
     args.update(overrides)
     return DesignInputs(**args)
+
+
+# The same example on the production component library (src/design/components/data):
+# fixture ids map to the production SDPWS Table 4.3A rows and F1554 rods (see PR #12,
+# tests/test_production_library_example.py).
+FIXTURE_TO_PRODUCTION = {
+    "EX-OSB-15/32-10dc-": "WSP-SH-15/32-10dc-",
+    "EX-F1554-36-": "F1554-36-",
+}
+
+
+def to_production_id(value: str) -> str:
+    for old, new in FIXTURE_TO_PRODUCTION.items():
+        if value.startswith(old):
+            return new + value[len(old):]
+    return value
+
+
+def production_inputs(**overrides) -> DesignInputs:
+    """The example inputs with component ids pointing at the production library."""
+    inp = inputs(**overrides)
+    stories = []
+    for s in inp.stories:
+        changes = {"assembly_id": to_production_id(s.assembly_id)}
+        if isinstance(s.tiedown, RodSystem):
+            changes["tiedown"] = dataclasses.replace(s.tiedown, system_id=to_production_id(s.tiedown.system_id))
+        stories.append(dataclasses.replace(s, **changes))
+    return dataclasses.replace(inp, stories=tuple(stories))
