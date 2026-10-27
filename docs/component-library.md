@@ -35,7 +35,7 @@ Every table ends with the same seven columns, matching the capacity-table row in
 
 ### `lumber_sizes.csv` — dressed dimensions
 
-Nominal size, actual thickness (smaller dimension) and width (larger dimension). Area and section moduli are computed by the `LumberSize` record from the rectangle; nothing else is stored. Source: NDS 2024 Supplement Table 1B.
+Nominal size, actual thickness (smaller dimension) and width (larger dimension). Limited to 2x4, 2x6 and 2x8 for the event. Area and section moduli are computed by the `LumberSize` record from the rectangle; the table's printed values are also stored (`table_*` columns) and a test confirms the two agree. Source: NDS 2024 Supplement Table 1B.
 
 ### `lumber_design_values.csv` — reference design values
 

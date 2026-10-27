@@ -1,13 +1,4 @@
-nominal,thickness_in,width_in,source_doc,table,page,status,entered_by,checked_by,notes
-2x4,1.5,3.5,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
-2x6,1.5,5.5,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
-2x8,1.5,7.25,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
-2x10,1.5,9.25,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
-2x12,1.5,11.25,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
-3x4,2.5,3.5,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
-3x6,2.5,5.5,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
-4x4,3.5,3.5,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
-4x6,3.5,5.5,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
-4x8,3.5,7.25,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
-6x6,5.5,5.5,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
-6x8,5.5,7.5,NDS 2024 Supplement,Table 1B,,pending,,,Standard dressed dimensions; confirm against the cited table and set verified
+nominal,thickness_in,width_in,table_area_in2,table_Sxx_in3,table_Ixx_in4,table_Syy_in3,table_Iyy_in4,source_doc,table,page,status,entered_by,checked_by,notes
+2x4,1.5,3.5,5.25,3.06,5.359,1.313,0.984,NDS 2024 Supplement,Table 1B,,memory,"Claude, from Table 1B image supplied by VL",,Set verified with your initials in checked_by after checking against the printed table
+2x6,1.5,5.5,8.25,7.56,20.8,2.063,1.547,NDS 2024 Supplement,Table 1B,,memory,"Claude, from Table 1B image supplied by VL",,Set verified with your initials in checked_by after checking against the printed table
+2x8,1.5,7.25,10.88,13.14,47.63,2.719,2.039,NDS 2024 Supplement,Table 1B,,memory,"Claude, from Table 1B image supplied by VL",,Set verified with your initials in checked_by after checking against the printed table
