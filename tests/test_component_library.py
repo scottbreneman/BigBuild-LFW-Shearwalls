@@ -200,3 +200,59 @@ def test_computed_section_properties_match_table_1b(lib):
         for computed, tabulated in pairs:
             if tabulated is not None:
                 assert computed == pytest.approx(tabulated, rel=5e-3), s.nominal
+
+
+# --------------------------------------------------------------------------
+# Size factors (NDS Supplement Table 4A) and lumber-value lookups
+# --------------------------------------------------------------------------
+
+
+def test_size_factor_lookup_maps_grade_and_nominal_to_table_labels(lib):
+    sf = lib.size_factor("No.1", "2x4")
+    assert sf.grade_group.startswith("Select Structural") and sf.width_label == '2", 3", & 4"'
+    assert lib.size_factor("No.2", "2x6").width_label == '6"'
+    assert lib.size_factor("Select Structural", "2x8").width_label == '8"'
+    assert lib.size_factor("Stud", "2x6").width_label == '5" & 6"'
+
+
+def test_size_factor_matches_engine_hardcoded_value(lib):
+    """design/factors.py hard-codes C_F(Fc) = 1.15 for DF-L No.1 2x4; the table row must agree."""
+    assert lib.size_factor("No.1", "2x4").CF_Fc == pytest.approx(1.15)
+
+
+def test_size_factor_unknown_grade_is_a_lookup_error(lib):
+    with pytest.raises(LookupError):
+        lib.size_factor("Dense Select Structural", "2x4")
+
+
+def test_size_factors_table_is_optional(tmp_path):
+    """A data directory without size_factors.csv (e.g. the WoodWorks fixture) still loads."""
+    import shutil
+
+    for name in RECORD_TYPES:
+        if name != "size_factors":
+            shutil.copy(DATA_DIR / f"{name}.csv", tmp_path / f"{name}.csv")
+    assert load_library(tmp_path).size_factors == []
+
+
+def test_lumber_values_present_for_every_grade_and_size_in_scope(lib):
+    dim = '2"-4" thick, 2" & wider'
+    for species in ("Douglas Fir-Larch", "Spruce-Pine-Fir"):
+        for grade in ("Select Structural", "No.1", "No.2", "No.3", "Stud"):
+            v = lib.lumber_values(species, grade, dim)
+            assert v.E_psi and v.Fc_psi and v.specific_gravity, (species, grade)
+    for size_class in ('2" - 4" wide', '5" - 6" wide', '8" wide'):
+        for grade in ("Select Structural", "No.1", "No.2", "No.3", "Stud"):
+            v = lib.lumber_values("Southern Pine", grade, size_class)
+            assert v.E_psi and v.Fc_psi and v.specific_gravity == 0.55, (size_class, grade)
+
+
+def test_lumber_values_agree_with_woodworks_fixture_row(lib):
+    """The teammates' answer-key fixture transcribed DF-L No.1 from the example; Table 4A must agree."""
+    fixture = Path(__file__).parent / "fixtures" / "woodworks_components" / "lumber_design_values.csv"
+    with fixture.open(newline="", encoding="utf-8") as fh:
+        rows = [r for r in csv.DictReader(fh) if r["species_group"] == "Douglas Fir-Larch" and r["grade"] == "No.1"]
+    assert rows, "fixture row not found"
+    table = lib.lumber_values("Douglas Fir-Larch", "No.1", '2"-4" thick, 2" & wider')
+    for col in ("Fb_psi", "Ft_psi", "Fv_psi", "Fc_perp_psi", "Fc_psi", "E_psi", "Emin_psi"):
+        assert float(rows[0][col]) == pytest.approx(getattr(table, col)), col
