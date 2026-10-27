@@ -1,5 +1,7 @@
 # Preparation record
 
+> **Historical record.** Preparation is complete and event development has started (October 2026). The boundary below described the pre-event state and no longer restricts work; see AGENTS.md for current rules. The Git tag `event-start` marks the last preparation commit (`0db5621`); show event additions with `git log event-start..HEAD` or `git diff event-start`.
+
 ## Boundary
 
 Prepared for the NCSEA Big Build Hackathon: documentation, empty application folders, Python packages, and generic environment tests. No shear-wall application code, design formulas, structural idealization, or engineering benchmark tests have been written. README and proposal are drafts for the owner to refine.

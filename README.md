@@ -8,7 +8,7 @@ Our first target is one five-story stack of solid wood structural panel (WSP) sh
 
 Bring wood design experience, Python or structural analysis skills, UI ideas, or curiosity about directing AI coding tools. Different editors and coding-agent subscriptions are welcome: GitHub, readable documentation, and repeatable checks are our shared workspace.
 
-**Before the event:** tooling, references, onboarding, and empty folders only. Engineering methods, application code, and the demonstration will be developed during the hackathon. OpenSeesPy is an installed candidate engine, not a settled wall-modeling method.
+**Status: the hackathon is underway.** Event development has started; engineering methods, application code, and the demonstration are being built now. Pre-event preparation (tooling, references, onboarding) is recorded in [docs/preparation.md](docs/preparation.md). OpenSeesPy is an installed candidate engine, not a settled wall-modeling method.
 
 - [One-page proposal](docs/proposal.md)
 - [Join the team and set up your tools](docs/team-onboarding.md)
@@ -26,4 +26,4 @@ Bring wood design experience, Python or structural analysis skills, UI ideas, or
 | `references/public/` | Documents with confirmed redistribution permission |
 | `tools/` | Generic environment verification, independent of the app |
 
-No application or engineering benchmark has been implemented. Prototype results will need validation against selected references and engineering review before project use.
+Application and engineering work is in progress. Prototype results will need validation against selected references and engineering review before project use.

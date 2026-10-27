@@ -1,0 +1,2 @@
+panel_type,panel_grade,nominal_thickness_label,nominal_thickness_in,span_rating,exposure,source_doc,table,page,status,entered_by,checked_by,notes
+OSB,Not stated in example,15/32,0.46875,,,"WoodWorks, Five-Story Light-Frame Wood Structure Over Podium, 2nd ed. (Nov 2025)",§3.3.4,30,memory,Claude,,Example does not state the panel grade

@@ -1,0 +1,5 @@
+system_id,manufacturer,rod_diameter_in,rod_material,rod_allowable_tension_lb,rod_net_area_in2,take_up_device,bearing_plate,evaluation_report,source_doc,table,page,status,entered_by,checked_by,notes
+EX-F1554-36-5/8,Generic,0.625,ASTM F1554 Gr. 36,6670,0.226,,,,"WoodWorks, Five-Story Light-Frame Wood Structure Over Podium, 2nd ed. (Nov 2025)",Tables 3.11 and 3.15,37 and 46,memory,Claude,,Allowable = 0.75 Fu Ag / 2.00 per example Table 3.11
+EX-F1554-36-3/4,Generic,0.75,ASTM F1554 Gr. 36,9610,0.334,,,,"WoodWorks, Five-Story Light-Frame Wood Structure Over Podium, 2nd ed. (Nov 2025)",Tables 3.11 and 3.15,37 and 46,memory,Claude,,Allowable = 0.75 Fu Ag / 2.00 per example Table 3.11
+EX-F1554-36-1,Generic,1.0,ASTM F1554 Gr. 36,17080,0.606,,,,"WoodWorks, Five-Story Light-Frame Wood Structure Over Podium, 2nd ed. (Nov 2025)",Tables 3.11 and 3.15,37 and 46,memory,Claude,,Allowable = 0.75 Fu Ag / 2.00 per example Table 3.11
+EX-F1554-36-1-1/8,Generic,1.125,ASTM F1554 Gr. 36,21620,0.763,,,,"WoodWorks, Five-Story Light-Frame Wood Structure Over Podium, 2nd ed. (Nov 2025)",Tables 3.11 and 3.15,37 and 46,memory,Claude,,Allowable = 0.75 Fu Ag / 2.00 per example Table 3.11
