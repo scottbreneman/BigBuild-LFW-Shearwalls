@@ -39,17 +39,21 @@ Nominal size, actual thickness (smaller dimension) and width (larger dimension).
 
 ### `lumber_design_values.csv` — reference design values
 
-One row per species group × grade × size class. Reference (unadjusted) values `Fb`, `Ft`, `Fv`, `Fc⊥`, `Fc`, `E`, `Emin` in psi, plus specific gravity `G` for fastener design.
+One row per species group × grade × size class. Reference (unadjusted) values `Fb`, `Ft`, `Fv`, `Fc⊥`, `Fc`, `E`, `Emin` in psi, plus specific gravity `G` from the table's own Specific Gravity column.
 
-| Species group | Rows seeded | Source |
-| --- | --- | --- |
-| Douglas Fir-Larch | SS, No.1, No.2, Stud for `2"-4" thick, 2" & wider`; No.1, No.2 Posts & Timbers | NDS 2024 Supplement Tables 4A and 4D |
-| Spruce-Pine-Fir | SS, No.1, No.2, Stud for `2"-4" thick, 2" & wider` | NDS 2024 Supplement Table 4A |
-| Southern Pine | SS, No.1, No.2, Stud for each of 2x4 … 2x12; No.1, No.2 Posts & Timbers | NDS 2024 Supplement Tables 4B and 4D |
+| Species group | Rows entered | `size_class` label | Source |
+| --- | --- | --- | --- |
+| Douglas Fir-Larch | SS, No.1 & Btr, No.1, No.2, No.3, Stud | `2"-4" thick, 2" & wider` | NDS 2024 Supplement Table 4A |
+| Spruce-Pine-Fir | SS, No.1, No.2, No.3, Stud | `2"-4" thick, 2" & wider` | NDS 2024 Supplement Table 4A (prints No.1 and No.2 as one row) |
+| Southern Pine | SS, No.1, No.2, No.3, Stud for each width | `2" - 4" wide`, `5" - 6" wide`, `8" wide` | NDS 2024 Supplement Table 4B, p. 40 (prints No.3 and Stud as one row) |
 
-Southern Pine values are width-specific, so the `size_class` column holds the actual size (`2x6`) rather than a range. Use the source table's own row label in `size_class` so a reviewer can find it. `G` comes from NDS 2024 Table 12.3.3A; note that in `notes` if you cite a different table.
+Where the table prints two grades on one row (SPF No.1/No.2; Southern Pine No.3 and Stud) the values are entered once per grade so a lookup by either grade works; the `notes` column says so. Southern Pine 10" and 12" widths, the Dense/Non-Dense grades, Mixed Southern Pine, DF-L (North), SPF (South), and Construction/Standard/Utility grades were not entered. Add rows if the team needs them; do not repurpose existing ones.
 
-If the team settles on a species not listed (Hem-Fir, for example), add rows; do not repurpose existing ones.
+The Table 4A `size_class` label combines the table heading (2"–4" thick) with the row label (2" & wider) because the engine's `inputs.py` already keys on that string.
+
+### `size_factors.csv` — Table 4A size factors C_F
+
+The Size Factors table from NDS 2024 Supplement Table 4A Adjustment Factors (p. 32): one row per grade group × width label, with C_F for F_b (2"&3" thick and 4" thick columns), F_t and F_c. `lib.size_factor(grade, nominal)` maps a grade and a nominal size such as `2x6` to the right row. These apply to **Table 4A species only**; Table 4B Southern Pine values are already width-specific and use Table 4B's own adjustment factors. Stud grade 8" and wider uses No.3 values and factors, as the table says. The other adjustment factors on that page (C_r, C_M, C_fu) are single values or small tables that live with the design module's factors.
 
 ### `sheathing_panels.csv` — wood structural panels
 

@@ -30,6 +30,7 @@ from .schema import (
     Nail,
     SheathingPanel,
     ShearWallAssembly,
+    SizeFactor,
     Status,
 )
 
@@ -45,6 +46,7 @@ __all__ = [
     "Nail",
     "SheathingPanel",
     "ShearWallAssembly",
+    "SizeFactor",
     "Status",
     "load_library",
 ]
