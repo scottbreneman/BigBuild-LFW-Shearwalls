@@ -57,11 +57,11 @@ The Size Factors table from NDS 2024 Supplement Table 4A Adjustment Factors (p. 
 
 ### `sheathing_panels.csv` — wood structural panels
 
-OSB and plywood, `Sheathing` and `Structural I` grades, nominal thicknesses 3/8 through 5/8. `nominal_thickness_in` is the decimal of the label and is what the assembly table joins on. `span_rating` and `exposure` are blank until something needs them.
+OSB and plywood, `Sheathing` and `Structural I` grades, nominal thicknesses 3/8 through 5/8. `nominal_thickness_in` is the decimal of the label and is what the assembly table joins on. `span_rating` and `exposure` are blank until something needs them. `Gvtv_lb_per_in` is the panel shear rigidity G_v t_v (SDPWS Commentary Tables C4.2.2A/B), used only by the 4-term deflection option.
 
 ### `nails.csv` — nail dimensions
 
-Trade designation (`8d common`), type, diameter and length in inches. `Fyb` (bending yield strength) is blank; fill from NDS 2024 Table I1 only if nail yield-mode design is added. Source: NDS 2024 Appendix L, Table L4. Shear-wall assembly rows reference nails by `designation`, and a test checks the reference resolves.
+Trade designation (`8d common`), type, diameter and length in inches. `Fyb` (bending yield strength) is blank; fill from NDS 2024 Table I1 only if nail yield-mode design is added. `slip_den_*`, `slip_exp_*` and `slip_max_load_lb` hold the fastener slip equation e_n = (V_n / den)^exp for dry and green framing (SDPWS Commentary Table C4.2.2D), used only by the 4-term deflection option. Source: NDS 2024 Appendix L, Table L4. Shear-wall assembly rows reference nails by `designation`, and a test checks the reference resolves.
 
 ### `shear_wall_assemblies.csv` — SDPWS Table 4.3A structure
 

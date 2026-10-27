@@ -221,12 +221,12 @@ def test_carry_rotation_is_shown_without_the_decision_number(carry, shown):
     assert "(D6)" not in md.split("## Summary of results")[0]
 
 
-def test_carry_rotation_yes_makes_drift_need_input():
-    """The engine has no carried-rotation method yet (decision D6): the report must say so, not hide it."""
+def test_carry_rotation_yes_shows_the_rotation_steps():
+    """Carried rotation is now an engine option (D6, rigid-body geometry): the report must show its steps."""
     r = run_design(dataclasses.replace(inputs(), carry_rotation=True), library())
+    assert not r.needs_input
     md = build_markdown(r, DAY)
-    assert "Decision D6" in md
-    assert "NEEDS INPUT" in md
+    assert "Drift from rotation of stories below" in md
 
 
 # --- statics section and free-body figure -----------------------------------------------------

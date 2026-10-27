@@ -1,11 +1,11 @@
-designation,pennyweight,nail_type,diameter_in,length_in,head_diameter_in,bending_yield_Fyb_psi,source_doc,table,page,status,entered_by,checked_by,notes
-6d common,6d,common,0.113,2.0,0.266,,NDS 2024,"Appendix L, Table L4",,pending,,,"Length, shank and head dia also printed in SDPWS 2021 Table 4.3A nail column (matches). Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed"
-8d common,8d,common,0.131,2.5,0.281,,NDS 2024,"Appendix L, Table L4",,pending,,,"Length, shank and head dia also printed in SDPWS 2021 Table 4.3A nail column (matches). Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed"
-10d common,10d,common,0.148,3.0,0.312,,NDS 2024,"Appendix L, Table L4",,pending,,,"Length, shank and head dia also printed in SDPWS 2021 Table 4.3A nail column (matches). Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed"
-12d common,12d,common,0.148,3.25,,,NDS 2024,"Appendix L, Table L4",,pending,,,Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed
-16d common,16d,common,0.162,3.5,,,NDS 2024,"Appendix L, Table L4",,pending,,,Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed
-6d box,6d,box,0.099,2.0,,,NDS 2024,"Appendix L, Table L4",,pending,,,Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed
-8d box,8d,box,0.113,2.5,,,NDS 2024,"Appendix L, Table L4",,pending,,,Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed
-10d box,10d,box,0.128,3.0,,,NDS 2024,"Appendix L, Table L4",,pending,,,Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed
-16d box,16d,box,0.135,3.5,,,NDS 2024,"Appendix L, Table L4",,pending,,,Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed
-16d sinker,16d,sinker,0.148,3.25,,,NDS 2024,"Appendix L, Table L4",,pending,,,Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed
+designation,pennyweight,nail_type,diameter_in,length_in,head_diameter_in,bending_yield_Fyb_psi,slip_den_dry,slip_exp_dry,slip_den_green,slip_exp_green,slip_max_load_lb,source_doc,table,page,status,entered_by,checked_by,notes
+6d common,6d,common,0.113,2.0,0.266,,,,,,,NDS 2024,"Appendix L, Table L4",,pending,,,"Length, shank and head dia also printed in SDPWS 2021 Table 4.3A nail column (matches). Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed"
+8d common,8d,common,0.131,2.5,0.281,,,,,,,NDS 2024,"Appendix L, Table L4",,pending,,,"Length, shank and head dia also printed in SDPWS 2021 Table 4.3A nail column (matches). Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed"
+10d common,10d,common,0.148,3.0,0.312,,,,,,,NDS 2024,"Appendix L, Table L4",,pending,,,"Length, shank and head dia also printed in SDPWS 2021 Table 4.3A nail column (matches). Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed"
+12d common,12d,common,0.148,3.25,,,,,,,,NDS 2024,"Appendix L, Table L4",,pending,,,Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed
+16d common,16d,common,0.162,3.5,,,,,,,,NDS 2024,"Appendix L, Table L4",,pending,,,Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed
+6d box,6d,box,0.099,2.0,,,,,,,,NDS 2024,"Appendix L, Table L4",,pending,,,Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed
+8d box,8d,box,0.113,2.5,,,,,,,,NDS 2024,"Appendix L, Table L4",,pending,,,Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed
+10d box,10d,box,0.128,3.0,,,,,,,,NDS 2024,"Appendix L, Table L4",,pending,,,Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed
+16d box,16d,box,0.135,3.5,,,,,,,,NDS 2024,"Appendix L, Table L4",,pending,,,Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed
+16d sinker,16d,sinker,0.148,3.25,,,,,,,,NDS 2024,"Appendix L, Table L4",,pending,,,Confirm against Table L4; fill Fyb from NDS Table I1 if nail design is needed

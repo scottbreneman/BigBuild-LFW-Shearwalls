@@ -45,6 +45,22 @@ The DCR is demand / capacity. PASS means DCR ≤ 1.0. Colour bands belong to the
 
 The answer-key test ([tests/test_woodworks_seismic.py](../tests/test_woodworks_seismic.py)) uses a test-only component set transcribed from the example ([tests/fixtures/woodworks_components/](../tests/fixtures/woodworks_components/)). It reproduces example Tables 3.5 to 3.19 within a provisional tolerance (D7). That is a regression benchmark, not engineering validation.
 
+## Deflection options (spec-io C1a, C5–C7; decision D6)
+
+The default is the example's method: SDPWS 3-term, floor to floor, with take-up devices and restraint at every level.
+
+| Input | Effect | Checked against |
+| --- | --- | --- |
+| `DesignInputs.deflection_method="4-term"` | SDPWS Commentary C4.3.4-1: panel shear v h / (n G_v t_v) + nail slip 0.75 h e_n. Needs `Gvtv_lb_per_in` on the sheathing panel row and the slip constants on the nail row (component library) | SEB spreadsheet rows 135–139, both sheets (exact) |
+| `DesignInputs.framing_moisture="green"` | Uses the green-lumber nail slip equation | — |
+| `RodSystem(takeup_device=False, shrinkage_in=…)` | Counts shrinkage; drops slack and take-up elongation | Example Table 3.17B, per level |
+| `DesignInputs.restraint_each_level=False` | Chord deformation accumulates up the building | Example Table 3.17B, cumulative |
+| `DesignInputs.carry_rotation=True` | Adds 12 h_i Σ θ_k from the stories below, θ = Δ_a/(12 b) + 1.5 δ_b/(12 h) | Hand calculation (tests/test_deflection_options.py) |
+
+Example Table 3.17B prints 0.466 in. for the 4th level. Its own components and its cumulative column give 0.446, so 0.466 is a typo in the example.
+
+For the WoodWorks wall, rotation carried up raises story 4's design drift from 1.14 to 2.38 in. (allowable 2.40). Dropping the restraint at every level makes stories 4 and 5 fail.
+
 ## Cross-check against the SEB spreadsheet (local only)
 
 [tests/test_seb_spreadsheet.py](../tests/test_seb_spreadsheet.py) compares the engine with a private Malone–Breneman shear wall spreadsheet. The spreadsheet is git-ignored. The test reads every expected value from the local copy at run time and skips without it; set `SEB_XLSX` to its path. To print a side-by-side report on your own machine, run `.venv\Scripts\python tools\compare_seb.py [--all]`. The cell map is in [tests/seb_spreadsheet.py](../tests/seb_spreadsheet.py).

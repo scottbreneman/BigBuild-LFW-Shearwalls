@@ -19,6 +19,10 @@ Everything marked `memory` below was written from memory by Claude and is **not 
 | Seismic design category | SDC | A to F | 3x framing detailing flag (SDPWS §4.3.7.1 item 5) |
 | Wind drift limit | r_w | unitless ratio | Wind only. Allowable story drift / story height, e.g. 1/400. User supplied (decision D6) |
 | Net roof uplift on the wall | w_up | plf | Wind only, strength level; adds w_up b²/2 to overturning (example §4.5.2) |
+| Deflection method | | 3-term / 4-term | Stage C. 3-term SDPWS Eq. 4.3-1 (default) or 4-term Commentary Eq. C4.3.4-1 |
+| Framing moisture | | dry / green | 4-term only; selects the nail slip equation |
+| Rotation carried up | | yes / no | Stage C, default no. Adds the rotation of the stories below (decision D6) |
+| Tie-down restraint at every level | | yes / no | Stage C, default yes. No: chord deformation accumulates up the building (example Table 3.17B) |
 
 ### Wall (same for every story in the stack)
 
@@ -43,6 +47,8 @@ Everything marked `memory` below was written from memory by Claude and is **not 
 | Hold-down allowable tension | T_allow,i | lb | From the product evaluation report; user input |
 | Chord modulus and area | E, A | psi, in² | Stage C only |
 | Anchorage slip at the hold-down | Δ_a,i | in | Stage C only; from the product data |
+| Take-up device present | | yes / no | Rod systems, default yes. No: slack and device elongation drop out and shrinkage is counted |
+| Story shrinkage | Δ_sh,i | in | Rod systems without a take-up device (example §2.3, Table 2.1) |
 
 ### Capacity table row (data file)
 
@@ -125,6 +131,10 @@ The default lever arm for D2 is d_arm = b − d_post / 12 (ft), post-center to p
 | C1 | δ_sw,i = 8 v h³ / (E A b) + v h / (1000 G_a) + h Δ_a / b, in inches, with v in plf, h and b in ft, E in psi, A in in², G_a in kip/in, Δ_a in in. Rod systems: Δ_a = (rod elongation + crushing + bearing-plate crushing + slack + take-up) b / d | SDPWS-2021 Eq. 4.3-1; WoodWorks example §3.4.2-3.4.3, Fig. 3.10 | memory |
 | C2 | Seismic amplified deflection δ_x = C_d δ_se / I_e | ASCE 7-22 §12.8.6 | memory |
 | C3 | Story drift: each story analysed floor to floor, δ_sw,i used as the elastic story drift; seismic Δ_i = C_d δ_sw,i / I_e ≤ 0.020 h_sx (Risk Category I, II). Rotation carried up from lower stories is not applied (option returns needs-input) | WoodWorks example §3.4.4-3.4.5; ASCE 7-22 Table 12.12-1; decision D6 | assumption |
+| C1a | 4-term option: δ_sw,i = 8 v h³ / (E A b) + v h / (n G_v t_v) + 0.75 h e_n + h Δ_a / b, with e_n = k (V_n / den)^exp, V_n = (v / n) s / 12 per nail per side, k = 1.2 when panels are not Structural I. G_v t_v and the slip constants come from the component library | SDPWS-2021 Commentary Eq. C4.3.4-1, Tables C4.2.2A/B/D; example §3.4.2 | memory |
+| C5 | No take-up device: Δ_a includes the story shrinkage Δ_sh and drops slack and take-up elongation | example §3.4.3, Table 3.17B | assumption |
+| C6 | No tie-down restraint at every level: Δ_a,i = Σ Δ_a,k for k ≤ i is used in the anchorage term | example Table 3.17B (cumulative column) | assumption |
+| C7 | Rotation carried up: θ_k = Δ_a,k / (12 b) + 1.5 δ_b,k / (12 h_k); Δ_below,i = 12 h_i Σ θ_k for k < i; the story drift uses δ_sw,i + Δ_below,i. Not combined with C6 | statics, rigid-body geometry; decision D6 | assumption |
 | C4 | Wind: δ_sw,i at v = 1.0W/b, chord tension 0.6D + 1.0W, no C_d or I_e; check δ_sw,i ≤ r_w h_i with the user-supplied wind drift limit r_w. Without r_w the check returns needs-input | ASCE 7-22 Appendix C commentary (non-mandatory); example §4.6; decision D6 | assumption |
 
 ## 4. Decisions the engineers settle
@@ -136,7 +146,7 @@ Record each answer here with initials, then update the status of the affected ro
 - [ ] D3 Aspect-ratio limit and the capacity adjustment for h/b greater than 2. Read SDPWS-2021 §4.3.4 before coding.
 - [ ] D4 Which dead load counts for resisting moment (self-weight, point loads from posts) and the λ factors in A8.
 - [ ] D5 Stack chord force method: from the overturning moment, or cumulative story uplift. Match the reference example §3.3.6.
-- [ ] D6 Drift: load level for v in C1 (ASD or strength) and the story-drift definition. Seismic follows the example (strength level, floor to floor). **Wind (owner, 2026-10-27): check against a user-provided drift limit; forces 1.0W and 0.6D + 1.0W.**
+- [ ] D6 Drift: load level for v in C1 (ASD or strength) and the story-drift definition. Seismic follows the example (strength level, floor to floor). **Wind (owner, 2026-10-27): check against a user-provided drift limit; forces 1.0W and 0.6D + 1.0W.** **Rotation carried up (owner, 2026-10-27): optional, by rigid-body geometry (C7), not the SEB spreadsheet's d / H form.** 4-term deflection, no-take-up shrinkage and cumulative chord deformation are options (C1a, C5, C6); the default stays the example's 3-term floor-to-floor method.
 - [ ] D7 Tolerances for comparing results with the answer key.
 - [x] D8 Applied story forces are supplied at **strength level**; the engine applies 0.7E_h / 0.6W and the drift combinations (owner, 2026-10-27; matches example Tables 3.4 and 4.4).
 

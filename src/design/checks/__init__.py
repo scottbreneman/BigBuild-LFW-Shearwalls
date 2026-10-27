@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from analysis.stack import StoryForces
 
@@ -19,6 +19,7 @@ class Context:
     combos: ComboSet
     forces: tuple[StoryForces, ...]
     chords: tuple[ChordForces, ...]
+    cache: dict = field(default_factory=dict, compare=False, repr=False)  # per-run memo, e.g. story deflections
 
     def story(self, i: int) -> StoryInput:
         return self.inp.stories[i - 1]

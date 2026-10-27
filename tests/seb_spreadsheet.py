@@ -92,8 +92,9 @@ def parse_spacing(nail_text: str) -> float:
 def component_dir(wb, dest: Path) -> Path:
     """Write a component library built from the sheet's Design Tables into ``dest``.
 
-    Lumber, nails and panels come from the WoodWorks fixture (the sheet does not
-    tabulate F_c or E_min). Nominal shears are SDPWS 2015 values in the sheet with
+    Lumber comes from the WoodWorks fixture (the sheet does not tabulate F_c or
+    E_min). Panels carry the sheet's G_v t_v and the 10d nail its slip table, for
+    the 4-term deflection. Nominal shears are SDPWS 2015 values in the sheet with
     an ASD divisor of 2.0; they are rescaled to v_n = 2.8 (v_s / 2) so the engine's
     Ω = 2.8 reproduces the sheet's allowable. Double-sided types are stored per side.
     """
@@ -103,19 +104,21 @@ def component_dir(wb, dest: Path) -> Path:
     dt = wb["Design Tables"]
     common = dict(source_doc=SOURCE, page="", status="memory", entered_by="test", checked_by="")
 
-    asm = []
+    asm, panels = [], {}
     for t, r in _table(wb, 7, 34).items():
         double = str(dt[f"G{r}"].value).startswith("(2)")
         per_side = 2 if double else 1
         vs, ga = float(dt[f"I{r}"].value) / per_side, float(dt[f"J{r}"].value) / per_side
         ply = t.endswith("P")
+        grade = "Structural I" if dt[f"E{r}"].value else "Sheathing"
+        panels[("Plywood" if ply else "OSB", grade)] = float(dt[f"L{r}"].value) / per_side
         asm.append(dict(
-            assembly_id=f"SEB-{t}", sheathing_material="WSP", panel_grade=str(dt[f"D{r}"].value),
+            assembly_id=f"SEB-{t}", sheathing_material="WSP", panel_grade=grade,
             min_nominal_panel_thickness_label="15/32", min_nominal_panel_thickness_in=0.46875,
             min_fastener_penetration_in="", nail_designation="10d common",
             edge_nail_spacing_in=parse_spacing(dt[f"G{r}"].value),
-            v_seismic_nominal_plf=2.8 * vs / 2, Ga_osb_kips_per_in="" if ply else ga,
-            Ga_plywood_kips_per_in=ga if ply else "", v_wind_nominal_plf="", footnotes="",
+            v_n_plf=2.8 * vs / 2, Ga_osb_kips_per_in="" if ply else ga,
+            Ga_plywood_kips_per_in=ga if ply else "", footnotes="",
             table="Design Tables B7:M34", notes="v_n rescaled from SDPWS 2015 v_s: 2.8 (v_s / 2)", **common))
     rods = []
     for t, r in _table(wb, 80, 97).items():
@@ -126,7 +129,18 @@ def component_dir(wb, dest: Path) -> Path:
             rod_allowable_tension_lb=1000 * float(dt[f"D{r}"].value), rod_net_area_in2=float(dt[f"F{r}"].value),
             take_up_device="", bearing_plate="", evaluation_report="", table="Design Tables B80:G97",
             notes="", **common))
-    for name, rows in (("shear_wall_assemblies", asm), ("continuous_rod_systems", rods)):
+    panel_rows = [dict(panel_type=pt, panel_grade=g, nominal_thickness_label="15/32", nominal_thickness_in=0.46875,
+                       span_rating="", exposure="", Gvtv_lb_per_in=gt, table="Design Tables L7:L34", notes="",
+                       **common) for (pt, g), gt in panels.items()]
+    slip = _table(wb, 43, 48)
+    dry, grn = slip["10dDry"], slip["10dGrn"]
+    nails = [dict(designation="10d common", pennyweight="10d", nail_type="common", diameter_in=0.148, length_in=3.0,
+                  head_diameter_in="", bending_yield_Fyb_psi="",
+                  slip_den_dry=dt[f"F{dry}"].value, slip_exp_dry=dt[f"G{dry}"].value,
+                  slip_den_green=dt[f"F{grn}"].value, slip_exp_green=dt[f"G{grn}"].value,
+                  slip_max_load_lb=dt[f"E{dry}"].value, table="Design Tables B43:G48", notes="", **common)]
+    for name, rows in (("shear_wall_assemblies", asm), ("continuous_rod_systems", rods),
+                       ("sheathing_panels", panel_rows), ("nails", nails)):
         fields = [f.name for f in dataclasses.fields(RECORD_TYPES[name])]
         with (dest / f"{name}.csv").open("w", newline="", encoding="utf-8") as fh:
             w = csv.DictWriter(fh, fieldnames=fields)
@@ -161,11 +175,15 @@ def inputs_from_sheet(wb, sheet: str, run: str = "design") -> DesignInputs:
     """Engine inputs for one sheet.
 
     ``run="design"`` uses the strength-design posts and rods (D62, H85);
-    ``run="drift"`` uses the deflection table's own selections (I112, J112),
-    which a sheet may set differently.
+    ``run="drift"`` uses the deflection table's own selections (H112, I112,
+    J112), which a sheet may set differently; ``run="4-term"`` is the drift run
+    with the SDPWS Commentary 4-term deflection.
     """
     ws, dt = wb[sheet], wb["Design Tables"]
-    post_col, post_top, rod_col, rod_top = ("D", 62, "H", 85) if run == "design" else ("I", 112, "J", 112)
+    if run == "design":
+        nail_top, post_col, post_top, rod_col, rod_top = 39, "D", 62, "H", 85
+    else:
+        nail_top, post_col, post_top, rod_col, rod_top = 112, "I", 112, "J", 112
     posts, plates = _table(wb, 54, 74), _table(wb, 105, 120)
     stories = []
     for i in range(1, N + 1):
@@ -176,7 +194,7 @@ def inputs_from_sheet(wb, sheet: str, run: str = "design") -> DesignInputs:
         LL_up = float(ws[f"F{row(50, above)}"].value) if above else 0.0
         Lr_up = float(ws[f"G{row(50, above)}"].value) if above else 0.0
 
-        nail_type = str(ws[f"H{row(39, i)}"].value)
+        nail_type = str(ws[f"H{row(nail_top, i)}"].value)
         double = str(dt[f"G{_table(wb, 7, 34)[nail_type]}"].value).startswith("(2)")
         p = posts[str(ws[f"{post_col}{row(post_top, i)}"].value)]
         plate = parse_plate(str(ws[f"D{row(97, i)}"].value))
@@ -199,6 +217,7 @@ def inputs_from_sheet(wb, sheet: str, run: str = "design") -> DesignInputs:
         S_DS=float(ws["J32"].value), C_d=4.0, I_e=1.0,  # R222 = O222*4; no I_e term in the sheet
         risk_category="II", sdc="D",  # S222 = 0.02 h_sx
         wood_bearing_factor=float(ws["D175"].value), project_name=f"SEB spreadsheet: {sheet}",
+        deflection_method="4-term" if run == "4-term" else "3-term",
     )
 
 
@@ -274,6 +293,16 @@ def drift_pairs(i: int) -> list[Pair]:
         Pair("allowable drift", "check", f"{S}.drift", "capacity", f"S{r(222)}"),
     ]
     return [dataclasses.replace(p, run="drift") for p in pairs_]
+
+
+def four_term_pairs(i: int) -> list[Pair]:
+    """4-term deflection components (sheet rows 135-139), from a ``deflection_method="4-term"`` run."""
+    r = lambda top: row(top, i)  # noqa: E731
+    S = f"S{i}.drift"
+    return [Pair(label, "step", f"{S}.{key}", "", f"{col}{r(135)}", run="4-term") for label, key, col in (
+        ("panel shear rigidity G_v t_v", "Gvtv", "D"), ("load per nail V_n", "V_n", "G"),
+        ("nail slip e_n", "e_n", "L"), ("panel shear term", "d2_shear", "N"), ("nail slip term", "d2_slip", "O"),
+        ("4-term shear + slip", "d2", "P"))]
 
 
 # Quantities downstream of the bearing-plate area; differ where the sheet's plate table area is off.
