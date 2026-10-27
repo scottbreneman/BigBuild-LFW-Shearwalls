@@ -9,7 +9,7 @@ engineer can supply the number in the check that produced the step.
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 CODE_PREFIXES = ("SDPWS", "NDS", "ASCE", "AISC", "IBC")
 _BASIS_PREFIXES = ("statics", "definition", "input", "spec-io", "manufacturer")
@@ -67,9 +67,19 @@ def parse_citation(text: str) -> Citation:
     return Citation(tuple(code), tuple(example), tuple(basis), gap)
 
 
-def reference_text(text: str) -> str:
+def citation_for(step) -> Citation:
+    """The references worth printing for a step.
+
+    A ``statics`` step is plain mechanics, so the worked example adds nothing to it; any code
+    section it cites is kept.
+    """
+    c = parse_citation(step.citation)
+    return replace(c, example=()) if step.status == "statics" else c
+
+
+def reference_text(step) -> str:
     """One-line reference for Markdown: code references first, then the example, then any gap flag."""
-    c = parse_citation(text)
+    c = citation_for(step)
     parts = list(c.code)
     parts += [example_label(e) for e in c.example]
     parts += [b.capitalize() if b == "statics" else b for b in c.basis]
