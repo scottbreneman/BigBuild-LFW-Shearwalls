@@ -67,10 +67,12 @@ def _delta_a(ctx: Context, i: int, t: Tracer) -> float:
     if i > 1:
         below = chord_posts(ctx, ctx.story(i - 1).chord)
         d_out = s.chord.d_out_of_plane_in or p.size.width_in
-        A_sh = t.step("A_sh", "Sheathing bearing area", "A_sh", r"A_{sh} = d \cdot 12 L_c",
-                      f"{d_out}(12)({s.chord.chord_length_ft})", d_out * 12 * s.chord.chord_length_ft, "in²",
-                      f"{EX} §3.4.3, Table 3.14", "assumption",
-                      note="45° spread through the plates; reproduces the example's sheathing areas")
+        sp = fx.SHEATHING_SPREAD_IN
+        A_sh = t.step("A_sh", "Sheathing bearing area", "A_sh", r"A_{sh} = A_{posts} + s \cdot d",
+                      f"{p.area_in2:.2f} + {sp.value}({d_out})", p.area_in2 + sp.value * d_out, "in²",
+                      sp.citation, sp.status,
+                      note="Post bearing area spread 45° through the plates (3 in. each side), as in example "
+                           "Table 3.14 and the SEB spreadsheet")
         parts.append(_crush_step(t, "crush_sh", "Crushing: floor sheathing", C, A_sh, sheathing_crushing, 1.0))
         parts.append(_crush_step(t, "crush_top", "Crushing: top plate on posts below", C, below.area_in2,
                                  wood_crushing, k, Fcp))

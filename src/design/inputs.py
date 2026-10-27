@@ -50,6 +50,7 @@ class RodSystem:
     slack_in: float = 0.0  # take-up device travel before engagement (example Table 3.17A)
     takeup_elongation_in: float = 0.0  # manufacturer value (example Table 3.17A)
     rod_length_ft: float | None = None  # bearing restraint to restraint; default story height
+    bearing_hole_in: float | None = None  # rod hole in the wood under the plate; default rod + 3/16 in.
 
 
 Tiedown = Union[GenericHoldDown, RodSystem]
@@ -137,6 +138,9 @@ def validate(inp: DesignInputs) -> list[InputError]:
             for name in ("plate_width_in", "plate_length_in", "plate_thickness_in", "plate_Fy_psi"):
                 need(getattr(t, name) > 0, f"{p}.tiedown.{name}", "must be positive")
             need(t.slack_in >= 0 and t.takeup_elongation_in >= 0, f"{p}.tiedown", "slack and take-up must be >= 0")
+            if t.bearing_hole_in is not None:
+                need(0 < t.bearing_hole_in < min(t.plate_width_in, t.plate_length_in), f"{p}.tiedown.bearing_hole_in",
+                     "must be positive and smaller than the plate")
         elif isinstance(t, GenericHoldDown):
             need(t.model is not None or t.T_allow_lb is not None, f"{p}.tiedown",
                  "give a hold-down model or T_allow_lb")
