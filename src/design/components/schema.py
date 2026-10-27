@@ -180,11 +180,14 @@ class Nail(SourcedRecord):
 class ShearWallAssembly(SourcedRecord):
     """One row of a nominal unit shear capacity table for WSP shear walls.
 
-    Mirrors the columns of SDPWS 2021 Table 4.3A for blocked wood structural
-    panel shear walls. ``v_*_plf`` are *nominal* unit shear capacities as
-    tabulated; the ASD/LRFD conversion lives in the design module per
-    SDPWS 4.3.3. ``Ga_*`` is the apparent shear-wall shear stiffness
-    (kips/in) used in the SDPWS deflection equation.
+    Mirrors the columns of SDPWS 2021 Table 4.3A for wood structural panel
+    shear walls. ``v_n_plf`` is the single *nominal* unit shear capacity the
+    table prints per cell; the table's footnote 1 points to SDPWS 4.1.4 for
+    the ASD allowable and LRFD factored values, and that conversion (and any
+    seismic/wind distinction) lives in the design module with its own
+    citation. ``Ga_*`` is the apparent shear-wall shear stiffness (kips/in)
+    used in the SDPWS deflection equation, tabulated for OSB and for
+    plywood.
     """
 
     assembly_id: str = ""  # stable key, e.g. "WSP-S-7/16-8dc-6"
@@ -195,11 +198,10 @@ class ShearWallAssembly(SourcedRecord):
     min_fastener_penetration_in: Optional[float] = None
     nail_designation: str = ""  # key into nails.csv
     edge_nail_spacing_in: float = 0.0  # 6, 4, 3, 2
-    v_seismic_nominal_plf: Optional[float] = None
+    v_n_plf: Optional[float] = None
     Ga_osb_kips_per_in: Optional[float] = None
     Ga_plywood_kips_per_in: Optional[float] = None
-    v_wind_nominal_plf: Optional[float] = None
-    footnotes: str = ""  # source table footnote letters that apply to the row
+    footnotes: str = ""  # source table footnote numbers that apply to the row
 
 
 # --------------------------------------------------------------------------

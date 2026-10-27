@@ -9,7 +9,7 @@ reaches a calculation silently.
 
 Units are US customary throughout: inches, pounds, pounds per linear foot
 (plf), pounds per square inch (psi). Column names in the CSV files include
-the unit where one applies (``thickness_in``, ``Fb_psi``, ``v_seismic_plf``).
+the unit where one applies (``thickness_in``, ``Fb_psi``, ``v_n_plf``).
 
 Reference editions: NDS 2024 (with Supplement), SDPWS 2021, IBC 2024,
 ASCE 7-22. Manufacturer data cites the catalog or evaluation report edition.

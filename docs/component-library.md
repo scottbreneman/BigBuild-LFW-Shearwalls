@@ -29,7 +29,7 @@ Every table ends with the same seven columns, matching the capacity-table row in
 | `verified` | Values entered and checked by a named engineer against the named page | Yes |
 | `superseded` | Kept for history | Never |
 
-**Every seeded row is `pending`.** That includes the lumber dressed sizes and nail dimensions, which were typed in from common knowledge and need a two-minute check against the cited table before they are set to `verified`. Design values (`Fb_psi`, `v_seismic_nominal_plf`, allowable hold-down tension, …) were deliberately left blank: per the team plan, Claude does not supply SDPWS table values, and AGENTS.md says not to invent table entries. An engineer enters them and marks each row `memory` or `verified` with initials.
+**Rows start as `pending` until values are entered.** Rows transcribed from a table image an engineer supplied (lumber sizes from NDS Table 1B, WSP shear-wall assemblies from SDPWS Table 4.3A) are `memory` with the transcriber in `entered_by`; an engineer checks them against the printed page and sets `verified` with initials in `checked_by`. Design values nobody has supplied a source page for (`Fb_psi`, allowable hold-down tension, …) stay blank: per the team plan, Claude does not supply table values from recall, and AGENTS.md says not to invent table entries.
 
 ## Tables
 
@@ -64,12 +64,11 @@ Trade designation (`8d common`), type, diameter and length in inches. `Fyb` (ben
 One row per (panel grade, minimum panel thickness, nail, edge nail spacing) combination — the same cell structure as SDPWS 2021 Table 4.3A for blocked wood structural panel shear walls. Fill, per row:
 
 - `min_fastener_penetration_in`
-- `v_seismic_nominal_plf` — nominal unit shear capacity, seismic
+- `v_n_plf` — the single nominal unit shear capacity the table prints per cell
 - `Ga_osb_kips_per_in` and `Ga_plywood_kips_per_in` — apparent shear stiffness
-- `v_wind_nominal_plf` — nominal unit shear capacity, wind
-- `footnotes` — the footnote letters that apply to that row (framing species, 3x framing at close spacing, panel orientation, etc.)
+- `footnotes` — the footnote numbers that apply to that row (the table-wide 1, 3, 6; the WSP-group 4, 5; row-specific 2, 8, 10; nail-column 9)
 
-The values are **nominal** exactly as tabulated. The ASD reduction factor and LRFD resistance factor from SDPWS 4.3.3 are applied in the design module, which must cite that section.
+The values are **nominal** exactly as tabulated. SDPWS 2021 Table 4.3A does not have separate seismic and wind columns; the ASD allowable and LRFD factored values, including the seismic/wind distinction, come from SDPWS 4.1.4 (table footnote 1) and are applied in the design module, which cites that section. The WSP rows of Table 4.3A were transcribed on 2026-10-27 from the printed table and are `memory` until an engineer checks them.
 
 `assembly_id` is a stable key of the form `WSP-<grade>-<thickness>-<nail>-<spacing>`, e.g. `WSP-S1-15/32-10dc-3` (Structural I, 15/32 in., 10d common, 3 in. edge spacing). Once an ID is used anywhere, do not rename it; mark the row `superseded` and add a new one.
 

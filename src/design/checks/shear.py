@@ -13,8 +13,9 @@ def _asd_allowable(ctx: Context, i: int, t: Tracer) -> tuple[float, float]:
     s = ctx.story(i)
     asm = lookup(ctx.lib.assembly, s.assembly_id)
     seismic = ctx.inp.load_type == "seismic"
-    col = "v_seismic_nominal_plf" if seismic else "v_wind_nominal_plf"
-    vn = value(asm, col, s.assembly_id)
+    # SDPWS 2021 Table 4.3A prints one nominal v_n per cell; seismic vs wind
+    # enters through Omega (SDPWS 4.1.4), not through separate table columns.
+    vn = value(asm, "v_n_plf", s.assembly_id)
     t.step("v_n", f"Nominal unit shear, {ctx.inp.load_type} ({s.assembly_id})", "v_n", "v_n = table",
            f"v_n = {fmt(vn, 0)} plf", vn, "plf", cite(asm), status(asm))
     om = fx.OMEGA_SEISMIC if seismic else fx.OMEGA_WIND
