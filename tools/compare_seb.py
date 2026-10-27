@@ -32,14 +32,14 @@ def compare(wb, sheet: str, show_all: bool) -> int:
         return 0
     with tempfile.TemporaryDirectory() as tmp:
         lib = load_library(seb.component_dir(wb, Path(tmp)))
-        results = {run: run_design(seb.inputs_from_sheet(wb, sheet, run), lib) for run in ("design", "drift")}
+        results = {run: run_design(seb.inputs_from_sheet(wb, sheet, run), lib) for run in ("design", "drift", "4-term")}
     ws = wb[sheet]
     for run, res in results.items():
         print(f"  engine ({run} run): {res.status.value}; needs input: {[n.check_id for n in res.needs_input]}")
     mismatches = 0
     for i in range(1, seb.N + 1):
         print(f"  -- story {i}")
-        for p in seb.pairs(i):
+        for p in [*seb.pairs(i), *seb.four_term_pairs(i)]:
             sheet_v = ws[p.cell].value
             eng = seb.engine_value(results[p.run], p)
             if sheet_v is None or isinstance(sheet_v, str):

@@ -1,2 +1,2 @@
-designation,pennyweight,nail_type,diameter_in,length_in,head_diameter_in,bending_yield_Fyb_psi,source_doc,table,page,status,entered_by,checked_by,notes
-10d common,10d,common,0.148,3.0,0.312,,"WoodWorks, Five-Story Light-Frame Wood Structure Over Podium, 2nd ed. (Nov 2025)",§3.3.4,30,memory,Claude,,Transcribed from the example for the answer-key test only
+designation,pennyweight,nail_type,diameter_in,length_in,head_diameter_in,bending_yield_Fyb_psi,slip_den_dry,slip_exp_dry,slip_den_green,slip_exp_green,slip_max_load_lb,source_doc,table,page,status,entered_by,checked_by,notes
+10d common,10d,common,0.148,3.0,0.312,,769,3.276,977,1.894,,"WoodWorks, Five-Story Light-Frame Wood Structure Over Podium, 2nd ed. (Nov 2025)",§3.3.4; §3.4.2 (slip equations),30 and 42,memory,Claude,,Transcribed from the example for the answer-key test only

@@ -143,6 +143,7 @@ class SheathingPanel(SourcedRecord):
     nominal_thickness_in: float = 0.0
     span_rating: str = ""  # "24/16", "32/16", ... blank if not tracked
     exposure: str = ""  # "Exposure 1", "Exterior", blank if not tracked
+    Gvtv_lb_per_in: Optional[float] = None  # panel shear rigidity G_v t_v (SDPWS Commentary Tables C4.2.2A/B), 4-term deflection
 
 
 # --------------------------------------------------------------------------
@@ -161,6 +162,12 @@ class Nail(SourcedRecord):
     length_in: float = 0.0
     head_diameter_in: Optional[float] = None
     bending_yield_Fyb_psi: Optional[float] = None
+    # Fastener slip e_n = (V_n / den)^exp, V_n in lb per nail (SDPWS Commentary Table C4.2.2D), 4-term deflection
+    slip_den_dry: Optional[float] = None
+    slip_exp_dry: Optional[float] = None
+    slip_den_green: Optional[float] = None
+    slip_exp_green: Optional[float] = None
+    slip_max_load_lb: Optional[float] = None  # upper end of the tabulated load range
 
 
 # --------------------------------------------------------------------------

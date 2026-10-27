@@ -6,6 +6,8 @@ value from the local copy at run time and skips when the file is absent
 
 - "5 Story 2025 Example Wall": the WoodWorks wall with unrounded intermediates;
   every mapped quantity must agree within 0.5 %.
+- Both sheets: the SDPWS Commentary 4-term deflection components (G_v t_v,
+  V_n, e_n, panel shear and nail slip terms) must agree within 0.5 %.
 - "SDPWS 5 story example": an independent short wall with no dead load and failing
   drift; every quantity must agree except the named known differences, and the
   drift pass/fail must agree story by story.
@@ -43,7 +45,7 @@ def runs(wb, tmp_path_factory):
     for sheet in seb.SHEETS:
         reason = seb.unsupported(wb, sheet)
         out[sheet] = None if reason else {
-            run: run_design(seb.inputs_from_sheet(wb, sheet, run), lib) for run in ("design", "drift")}
+            run: run_design(seb.inputs_from_sheet(wb, sheet, run), lib) for run in ("design", "drift", "4-term")}
     return out
 
 
@@ -54,7 +56,7 @@ def compare(wb, runs, sheet):
     ws = wb[sheet]
     bad, known = [], []
     for i in range(1, seb.N + 1):
-        for p in seb.pairs(i):
+        for p in [*seb.pairs(i), *seb.four_term_pairs(i)]:
             cell = ws[p.cell].value
             eng = seb.engine_value(runs[sheet][p.run], p)
             if eng is None:
