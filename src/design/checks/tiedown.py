@@ -56,9 +56,13 @@ def check_rod(ctx: Context, i: int) -> CheckResult:
 
 
 def bearing_area(t: Tracer, rs: RodSystem, d_rod: float) -> float:
-    hole = t.step("hole", "Hole in wood plate", "d_h", r"d_h = d_{rod} + 3/16",
-                  f"{d_rod:.4f} + 0.1875", d_rod + fx.BEARING_AREA_HOLE_OVERSIZE_IN.value, "in",
-                  fx.BEARING_AREA_HOLE_OVERSIZE_IN.citation, fx.BEARING_AREA_HOLE_OVERSIZE_IN.status)
+    if rs.bearing_hole_in is not None:
+        hole = t.step("hole", "Hole in wood plate (given)", "d_h", "given", "", rs.bearing_hole_in, "in",
+                      "input; plate specification", "assumption")
+    else:
+        hole = t.step("hole", "Hole in wood plate", "d_h", r"d_h = d_{rod} + 3/16",
+                      f"{d_rod:.4f} + 0.1875", d_rod + fx.BEARING_AREA_HOLE_OVERSIZE_IN.value, "in",
+                      fx.BEARING_AREA_HOLE_OVERSIZE_IN.citation, fx.BEARING_AREA_HOLE_OVERSIZE_IN.status)
     return t.step("A_brg", "Net bearing area", "A_brg", r"A_{brg} = W L - \pi d_h^2 / 4",
                   f"({rs.plate_width_in})({rs.plate_length_in}) − π({hole:.4f})²/4",
                   rs.plate_width_in * rs.plate_length_in - math.pi * hole**2 / 4, "in²", f"{EX} §3.3.6", "statics")
