@@ -22,6 +22,7 @@ Bring wood design experience, Python or structural analysis skills, UI ideas, or
 | `src/analysis/` | Structural model and response calculations |
 | `src/design/` | Component checks and reported calculation steps |
 | `src/ui/` | User interface; Streamlit is available |
+| `src/report/` | Calculation report (HTML and Markdown) built from a `DesignResult` |
 | `tests/` | Engineering benchmarks and regression tests |
 | `references/public/` | Documents with confirmed redistribution permission |
 | `tools/` | Generic environment verification, independent of the app |
