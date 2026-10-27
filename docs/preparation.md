@@ -20,6 +20,6 @@ These checks establish tooling behavior only. They do not validate wood engineer
 
 ## Still for the owner/team
 
-Supply reference links/documents and confirm redistribution permissions. Select the benchmark and modeling/checking approach during the event. Confirm per-person GitHub and coding-agent access. Review the proposal and establish the event starting commit. The preparation files and owner-approved cantilever diaphragm PDF are included in the preparation commit. The podium example remains outside Git. No push or pull request is part of this commit operation.
+Supply reference links/documents and confirm redistribution permissions. Select the benchmark and modeling/checking approach during the event. Confirm per-person GitHub and coding-agent access. Review the proposal and establish the event starting commit. The preparation files and owner-approved cantilever diaphragm PDF were committed and pushed to GitHub. The five-story podium PDF was subsequently approved by the owner and added to references/public/.
 
-The cloud configuration draft records reinstall and future startup guidance. Saving it is separate from publishing an environment snapshot. Fresh-task restoration has not been independently tested. This Git commit records the preparation files locally; sharing them on GitHub requires a separate push.
+The cloud configuration draft records reinstall and future startup guidance. Saving it is separate from publishing an environment snapshot. Fresh-task restoration has not been independently tested. The preparation commit was pushed to GitHub main; subsequent reference additions are recorded in Git history.
