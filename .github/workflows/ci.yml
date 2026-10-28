@@ -17,23 +17,67 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Check for restricted files or secrets in Git
-        run: |
-          echo "Checking tracked files for unauthorized PDFs, spreadsheets, or secret files..."
-          bad_files=$(git ls-files | grep -E -i '(\.(xlsx|xlsb|xlsm)$|(^|/)(\.env|secrets\.toml)$|\.pdf$)' | grep -v -E '^references/public/[^/]+\.pdf$' || true)
-          if [ -n "$bad_files" ]; then
-            echo "::error::Unauthorized PDF, spreadsheet, or secret file detected in Git:"
-            echo "$bad_files"
-            echo "Only approved PDFs documented in references/README.md may be committed under references/public/."
-            exit 1
-          fi
-
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
           cache-dependency-path: requirements-linux-py312.lock
+
+      - name: Check for restricted files or secrets in Git
+        run: |
+          python - <<'PY'
+          import pathlib
+          import subprocess
+          import sys
+
+          APPROVED_PDFS = {
+              "references/public/design_example_Cantilever_Wood_Diaphragm_07.2026.pdf",
+              "references/public/design_example_Five_Story_Light-Frame_Wood_Structure_Over-Podium_10.2025.pdf",
+          }
+          SPREADSHEET_EXTS = {".xlsx", ".xlsb", ".xlsm"}
+
+          readme_text = pathlib.Path("references/README.md").read_text(encoding="utf-8")
+          tracked = subprocess.check_output(["git", "ls-files"], text=True).splitlines()
+
+          violations = []
+          for rel_path in tracked:
+              path = pathlib.Path(rel_path)
+              name_lower = path.name.lower()
+              suffix_lower = path.suffix.lower()
+
+              # 1. Spreadsheets
+              if suffix_lower in SPREADSHEET_EXTS:
+                  violations.append(f"{rel_path} (spreadsheet files are prohibited)")
+                  continue
+
+              # 2. Environment & secret config files (.env, .env.*, secrets.toml), allowing .env.example
+              if name_lower == "secrets.toml" or (
+                  (name_lower == ".env" or name_lower.startswith(".env."))
+                  and name_lower != ".env.example"
+              ):
+                  violations.append(f"{rel_path} (secret/environment file is prohibited)")
+                  continue
+
+              # 3. PDFs must be in APPROVED_PDFS and cataloged in references/README.md
+              if suffix_lower == ".pdf":
+                  if rel_path not in APPROVED_PDFS:
+                      violations.append(
+                          f"{rel_path} (unapproved PDF; must be confirmed in references/README.md and added to APPROVED_PDFS)"
+                      )
+                  elif f"(public/{path.name})" not in readme_text:
+                      violations.append(
+                          f"{rel_path} (PDF is missing its catalog link in references/README.md)"
+                      )
+
+          if violations:
+              print("::error::Unauthorized PDF, spreadsheet, or secret file detected in Git:")
+              for v in violations:
+                  print(f"  - {v}")
+              sys.exit(1)
+
+          print("All tracked files passed content and secret guardrails.")
+          PY
 
       - name: Install locked dependencies
         run: |
@@ -46,4 +90,3 @@ jobs:
 
       - name: Run engineering test suite
         run: python -m pytest tests -q
-
