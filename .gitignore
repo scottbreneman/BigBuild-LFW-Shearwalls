@@ -9,7 +9,10 @@ __pycache__/
 outputs/
 .DS_Store
 
-# Local-only engineering spreadsheets (licensed / private; never commit)
-references/*.xlsx
-references/*.xlsb
-references/*.xlsm
+# Local-only engineering spreadsheets and restricted PDFs (licensed / private; never commit)
+*.xlsx
+*.xlsb
+*.xlsm
+*.pdf
+!references/public/design_example_Cantilever_Wood_Diaphragm_07.2026.pdf
+!references/public/design_example_Five_Story_Light-Frame_Wood_Structure_Over-Podium_10.2025.pdf
