@@ -9,7 +9,9 @@ __pycache__/
 outputs/
 .DS_Store
 
-# Local-only engineering spreadsheets (licensed / private; never commit)
-references/*.xlsx
-references/*.xlsb
-references/*.xlsm
+# Local-only engineering spreadsheets and restricted PDFs (licensed / private; never commit)
+*.xlsx
+*.xlsb
+*.xlsm
+*.pdf
+!references/public/*.pdf

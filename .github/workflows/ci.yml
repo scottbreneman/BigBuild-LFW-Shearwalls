@@ -1,0 +1,49 @@
+name: CI & Content Guardrails
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Guardrails & Tests (Python 3.12)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Check for restricted files or secrets in Git
+        run: |
+          echo "Checking tracked files for unauthorized PDFs, spreadsheets, or secret files..."
+          bad_files=$(git ls-files | grep -E -i '(\.(xlsx|xlsb|xlsm)$|(^|/)(\.env|secrets\.toml)$|\.pdf$)' | grep -v -E '^references/public/[^/]+\.pdf$' || true)
+          if [ -n "$bad_files" ]; then
+            echo "::error::Unauthorized PDF, spreadsheet, or secret file detected in Git:"
+            echo "$bad_files"
+            echo "Only approved PDFs documented in references/README.md may be committed under references/public/."
+            exit 1
+          fi
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: requirements-linux-py312.lock
+
+      - name: Install locked dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-linux-py312.lock
+          python -m pip check
+
+      - name: Run environment verification
+        run: python -m pytest tools/test_environment.py -q
+
+      - name: Run engineering test suite
+        run: python -m pytest tests -q
+
